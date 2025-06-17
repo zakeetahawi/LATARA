@@ -161,13 +161,12 @@ class CompanyInfo(models.Model):
     version = models.CharField(max_length=50, blank=True, default='1.0.0', verbose_name='إصدار النظام', editable=False)
     release_date = models.CharField(max_length=50, blank=True, default='2025-04-30', verbose_name='تاريخ الإطلاق', editable=False)
     developer = models.CharField(max_length=100, blank=True, default='zakee tahawi', verbose_name='المطور', editable=False)
-    working_hours = models.CharField(max_length=100, blank=True, default='', verbose_name='ساعات العمل')
-    # اسم الشركة
-    name = models.CharField(max_length=200, default='Elkhawaga', verbose_name='اسم الشركة')
+    working_hours = models.CharField(max_length=100, blank=True, default='', verbose_name='ساعات العمل')    # اسم الشركة
+    name = models.CharField(max_length=200, default='LATARA', verbose_name='اسم الشركة')
     # نص حقوق النشر المخصص
     copyright_text = models.CharField(
         max_length=255,
-        default='جميع الحقوق محفوظة لشركة الخواجة للستائر والمفروشات تطوير zakee tahawi',
+        default='جميع الحقوق محفوظة لشركة LATARA تطوير zakee tahawi',
         verbose_name='نص حقوق النشر',
         blank=True
     )
@@ -282,9 +281,9 @@ class ContactFormSettings(models.Model):
     title = models.CharField(max_length=100, default='اتصل بنا', verbose_name='عنوان الصفحة')
     description = models.TextField(blank=True, null=True, verbose_name='وصف الصفحة')
     # اسم الشركة المعروض في صفحة الاتصال
-    company_name = models.CharField(max_length=200, default='Elkhawaga', verbose_name='اسم الشركة')
+    company_name = models.CharField(max_length=200, default='LATARA', verbose_name='اسم الشركة')
     # معلومات جهات الاتصال
-    contact_email = models.EmailField(default='info@elkhawaga.com', verbose_name='البريد الإلكتروني للاتصال')
+    contact_email = models.EmailField(default='info@latara.com', verbose_name='البريد الإلكتروني للاتصال')
     contact_phone = models.CharField(max_length=20, default='+20 123 456 7890', verbose_name='رقم الهاتف للاتصال')
     contact_address = models.TextField(blank=True, null=True, verbose_name='عنوان المكتب')
     contact_hours = models.CharField(max_length=100, default='9 صباحاً - 5 مساءً', verbose_name='ساعات العمل')
@@ -427,7 +426,7 @@ class SystemSettings(models.Model):
         'BHD': 'د.ب',
         'OMR': 'ر.ع',
     }
-    name = models.CharField(_('اسم النظام'), max_length=100, default='نظام الخواجه')
+    name = models.CharField(_('اسم النظام'), max_length=100, default='نظام LATARA')
     currency = models.CharField(_('العملة'), max_length=3, choices=CURRENCY_CHOICES, default='SAR')
     version = models.CharField(_('إصدار النظام'), max_length=20, default='1.0.0')
     enable_notifications = models.BooleanField(_('تفعيل الإشعارات'), default=True)

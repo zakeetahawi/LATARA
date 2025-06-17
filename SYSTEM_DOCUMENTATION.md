@@ -84,7 +84,7 @@
 1. ملفات `.bat`:
    - `auto-update-daily.bat`
    - `no-push.bat`
-   - `run-elkhawaga.bat`
+   - `run-latara.bat`
    - `setup-auto-update.bat`
    - `setup-cloudflare.bat`
    - `start-website.bat`

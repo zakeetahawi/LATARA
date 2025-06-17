@@ -1,89 +1,0 @@
-[33mcommit 15d4a2b70413f6e00c10a127b9ebe65468104969[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
-Author: Zakee Tahawi <zakeetahawi@gmail.com>
-Date:   Thu May 29 14:37:21 2025 +0300
-
-    تحسينات الثيم الأسود الحديث: إصلاح مشكلات القوائم المنسدلة، تحسين زر التفعيل، وإضافة ميزة النقر بالزر الأيمن لتعيين الثيم كافتراضي
-
-A	MODERN_BLACK_TECHNICAL_REPORT.md
-A	MODERN_BLACK_THEME_REPORT.md
-A	THEME_FIXES_REPORT.md
-A	UI_ENHANCEMENTS_REPORT.md
-A	static/css/extra-dark-fixes.css
-A	static/css/modern-black-fixes.css
-A	static/css/modern-black-theme.css
-M	static/css/style.css
-M	static/js/main.js
-M	templates/base.html
-
-[33mcommit 7497885f54f513ba1af9afd77ae7b5edc1d86aa1[m
-Author: Zakee Tahawi <zakeetahawi@gmail.com>
-Date:   Tue May 27 19:26:07 2025 +0300
-
-    🧹 تنظيف النظام وحذف الثيمات الإضافية - إصدار 3.2.0
-    
-    ✨ التحديثات المطبقة:
-    - حذف ثيم Google Material الاحترافي
-    - حذف ثيم الفضي الأزرق الاحترافي
-    - الاحتفاظ بثيم Apple الوضع الليلي فقط
-    - تنظيف ملفات CSS وJS غير المستخدمة
-    - تنظيف قائمة الثيمات في base.html
-    
-    🗑️ الملفات المحذوفة:
-    - google-material-pro-theme.css
-    - professional-silver-blue-theme.css
-    - google-material-icons.js
-    - unified-icons-theme.js
-    - ملفات التوثيق الإضافية
-    
-    📁 الملفات المضافة:
-    - الشعار الأبيض الجديد (white_logo.png)
-    - تحديث staticfiles للإنتاج
-    
-    🎯 النتيجة:
-    - نظام أنظف وأسرع
-    - ثيم Apple محسن ومستقر
-    - 13 ثيم إجمالي (1 افتراضي + 1 Apple + 11 ملون)
-
-D	GOOGLE_MATERIAL_THEME_GUIDE.md
-D	THEMES_OPTIMIZATION_UPDATE.md
-D	THEMES_UPDATE_README.md
-D	THEME_DOCUMENTATION.md
-A	media/company_logos/white_logo.png
-D	static/css/google-material-pro-theme.css
-D	static/css/professional-silver-blue-theme.css
-M	static/css/style.css
-D	static/js/google-material-icons.js
-D	static/js/unified-icons-theme.js
-D	staticfiles/css/google-material-pro-theme.css
-D	staticfiles/css/professional-silver-blue-theme.css
-M	staticfiles/css/style.css
-D	staticfiles/js/google-material-icons.js
-D	staticfiles/js/unified-icons-theme.js
-A	staticfiles/media/company_logos/white_logo.png
-M	templates/base.html
-
-[33mcommit 7c3915c87058159343b985046fd423b497a2b61d[m
-Author: Zakee Tahawi <zakeetahawi@gmail.com>
-Date:   Tue May 27 18:28:43 2025 +0300
-
-    📚 إضافة توثيق شامل للتحديثات والتحسينات - إصدار 3.1.0
-    
-    ✨ ملف التوثيق الجديد:
-    - دليل شامل لجميع التحسينات المطبقة
-    - تفاصيل إصلاح مشاكل ثيم Apple
-    - مقارنات الأداء قبل وبعد التحسين
-    - دليل الاختبارات المطلوبة في الإنتاج
-    
-    📊 معلومات التحسين:
-    - تقليل أحجام العناصر بنسبة 12-33%
-    - تحسين الأداء بنسبة 50%
-    - إضافة ميزات جديدة للأيقونات
-    - تحسين التوافق مع جميع الشاشات
-    
-    🎯 الملفات المضافة:
-    - THEMES_OPTIMIZATION_UPDATE.md - دليل التحسينات الشامل
-    - توثيق تقني مفصل للتغييرات
-    - خطة الاختبارات والتحقق
-
-A	THEMES_OPTIMIZATION_UPDATE.md
-A	media/company_logos/White_Logo_1080_cU0LIYJ.png

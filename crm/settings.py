@@ -27,11 +27,11 @@ ALLOWED_HOSTS_DEFAULT = [
     '0.0.0.0',
     'testserver',
     # نطاقات الإنتاج
-    'elkhawaga.uk',
-    'www.elkhawaga.uk',
-    'crm.elkhawaga.uk',
-    'api.elkhawaga.uk',
-    'admin.elkhawaga.uk',
+    'latara.uk',
+    'www.latara.uk',
+    'crm.latara.uk',
+    'api.latara.uk',
+    'admin.latara.uk',
     # نطاقات Cloudflare
     '*.trycloudflare.com',
     '*.cloudflare.com',
@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.humanize',  # إضافة مكتبة التنسيق البشري
     'widget_tweaks',
+    'crispy_forms',  # إضافة مكتبة crispy forms
     'accounts',
     'customers',
     'factory',
@@ -336,16 +337,16 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:8000',
     'http://127.0.0.1:8000',
     # نطاقات الإنتاج
-    'https://elkhawaga.uk',
-    'https://www.elkhawaga.uk',
-    'https://crm.elkhawaga.uk',
-    'https://api.elkhawaga.uk',
-    'https://admin.elkhawaga.uk',
-    'http://elkhawaga.uk',
-    'http://www.elkhawaga.uk',
-    'http://crm.elkhawaga.uk',
-    'http://api.elkhawaga.uk',
-    'http://admin.elkhawaga.uk',
+    'https://latara.uk',
+    'https://www.latara.uk',
+    'https://crm.latara.uk',
+    'https://api.latara.uk',
+    'https://admin.latara.uk',
+    'http://latara.uk',
+    'http://www.latara.uk',
+    'http://crm.latara.uk',
+    'http://api.latara.uk',
+    'http://admin.latara.uk',
 ]
 
 CORS_ORIGIN_WHITELIST = CORS_ALLOWED_ORIGINS  # استخدام نفس القائمة
@@ -387,11 +388,11 @@ if DEBUG:
 # Security and Session Settings (تم دمج الإعدادات المكررة)
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS + [
     # إضافة نطاقات إضافية للـ CSRF
-    'https://elkhawaga.uk',
-    'https://www.elkhawaga.uk',
-    'https://crm.elkhawaga.uk',
-    'https://api.elkhawaga.uk',
-    'https://admin.elkhawaga.uk',
+    'https://latara.uk',
+    'https://www.latara.uk',
+    'https://crm.latara.uk',
+    'https://api.latara.uk',
+    'https://admin.latara.uk',
 ]
 
 # إعدادات CSRF موحدة
@@ -479,3 +480,9 @@ if not DEBUG:
     DATABASES['default']['AUTOCOMMIT'] = True  # تمكين AUTOCOMMIT لتجنب مشاكل الاتصال
 
     # تم نقل إعدادات قاعدة بيانات Railway إلى بداية الملف
+
+# ======================================
+# Crispy Forms Configuration
+# ======================================
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap4"
+CRISPY_TEMPLATE_PACK = "bootstrap4"

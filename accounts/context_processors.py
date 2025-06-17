@@ -85,24 +85,24 @@ def company_info(request):
         if not company:
             # إنشاء كائن بقيم افتراضية إذا لم يكن موجوداً
             company = CompanyInfo.objects.create(
-                name="الخواجة للستائر والمفروشات",
+                name="LATARA",
                 description="نظام متكامل لإدارة العملاء والمبيعات والإنتاج والمخزون",
                 version="1.0.0",
                 release_date="2025-04-30",
                 developer="zakee tahawi",
                 working_hours="9 صباحاً - 5 مساءً",
-                copyright_text="جميع الحقوق محفوظة لشركة الخواجة للستائر والمفروشات تطوير zakee tahawi"
+                copyright_text="جميع الحقوق محفوظة لشركة LATARA تطوير zakee tahawi"
             )
     except Exception:
         # في حالة حدوث أي خطأ، إنشاء كائن بقيم افتراضية
         company = CompanyInfo(
-            name="الخواجة للستائر والمفروشات",
+            name="LATARA",
             description="نظام متكامل لإدارة العملاء والمبيعات والإنتاج والمخزون",
             version="1.0.0",
             release_date="2025-04-30",
             developer="zakee tahawi",
             working_hours="9 صباحاً - 5 مساءً",
-            copyright_text="جميع الحقوق محفوظة لشركة الخواجة للستائر والمفروشات تطوير zakee tahawi"
+            copyright_text="جميع الحقوق محفوظة لشركة LATARA تطوير zakee tahawi"
         )
     return {'company_info': company}
 

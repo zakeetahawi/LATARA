@@ -51,7 +51,7 @@ def home(request):
     company_info = CompanyInfo.objects.first()
     if not company_info:
         company_info = CompanyInfo.objects.create(
-            name='الخواجة للستائر والمفروشات',
+            name='LATARA',
             version='1.0.0',
             release_date='2025-04-30',
             developer='zakee tahawi'

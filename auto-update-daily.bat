@@ -1,5 +1,5 @@
 @echo off
-title Elkhawaga Trading - Daily Auto Update
+title LATARA Trading - Daily Auto Update
 color 0C
 
 :: Set working directory
@@ -25,7 +25,7 @@ echo [%date% %time%] Found %UPDATE_COUNT% updates, applying... >> %LOG_FILE%
 :: Backup production files
 copy cloudflare-credentials.json cloudflare-credentials.json.bak >nul 2>&1
 copy cloudflared.yml cloudflared.yml.bak >nul 2>&1
-copy run-elkhawaga.bat run-elkhawaga.bat.bak >nul 2>&1
+copy run-latara.bat run-latara.bat.bak >nul 2>&1
 
 :: Apply updates
 git stash push -m "Auto-update stash %date% %time%" >> %LOG_FILE% 2>&1
@@ -34,7 +34,7 @@ git pull origin main >> %LOG_FILE% 2>&1
 :: Restore production files
 copy cloudflare-credentials.json.bak cloudflare-credentials.json >nul 2>&1
 copy cloudflared.yml.bak cloudflared.yml >nul 2>&1
-copy run-elkhawaga.bat.bak run-elkhawaga.bat >nul 2>&1
+copy run-latara.bat.bak run-latara.bat >nul 2>&1
 
 :: Clean backup files
 del *.bak >nul 2>&1
