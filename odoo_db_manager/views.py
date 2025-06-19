@@ -501,6 +501,10 @@ def database_delete(request, pk):
 @user_passes_test(is_staff_or_superuser)
 def backup_create(request, database_id=None):
     """إنشاء نسخة احتياطية"""
+    import os
+    import shutil
+    import datetime
+    
     # الحصول على قاعدة البيانات
     database = None
     if database_id:
@@ -595,14 +599,29 @@ def backup_create(request, database_id=None):
                     elif backup_type == 'settings':
                         apps_to_backup = ['odoo_db_manager']
                     else:  # full
-                        apps_to_backup = ['customers', 'orders', 'inspections', 'inventory', 'installations', 'factory', 'accounts', 'odoo_db_manager']
-
-                    # تنفيذ dumpdata
-                    call_command('dumpdata', *apps_to_backup, stdout=output, format='json', indent=2)
-
-                    # حفظ البيانات في الملف
-                    with open(backup_file, 'w', encoding='utf-8') as f:
-                        f.write(output.getvalue())
+                        apps_to_backup = ['customers', 'orders', 'inspections', 'inventory', 'installations', 'factory', 'accounts', 'odoo_db_manager']                    # تنفيذ dumpdata مع معالجة مشاكل الترميز
+                    import os
+                    import tempfile
+                    
+                    # إنشاء ملف مؤقت
+                    with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False, suffix='.json') as temp_file:
+                        temp_path = temp_file.name
+                    
+                    try:
+                        # تنفيذ dumpdata إلى ملف مؤقت مباشرة
+                        with open(temp_path, 'w', encoding='utf-8') as temp_output:
+                            call_command('dumpdata', *apps_to_backup, stdout=temp_output, 
+                                       format='json', indent=2, verbosity=0)
+                        
+                        # نسخ من الملف المؤقت إلى الملف النهائي
+                        with open(temp_path, 'r', encoding='utf-8') as temp_input:
+                            with open(backup_file, 'w', encoding='utf-8') as final_output:
+                                final_output.write(temp_input.read())
+                    
+                    finally:
+                        # حذف الملف المؤقت
+                        if os.path.exists(temp_path):
+                            os.unlink(temp_path)
 
                     print(f"تم إنشاء ملف النسخة الاحتياطية: {backup_file}")
                     print(f"حجم الملف: {os.path.getsize(backup_file)} بايت")
@@ -938,10 +957,8 @@ def backup_upload(request, database_id=None):
                 print("⚠️ تم تجاهل خيار حذف البيانات القديمة لتجنب مشاكل قاعدة البيانات")
 
             # استعادة مبسطة جداً
-            print(f"🔄 بدء استعادة الملف: {file_path}")
-
-            # التحقق من نوع الملف
-            if uploaded_file.name.endswith('.gz'):
+            print(f"🔄 بدء استعادة الملف: {file_path}")            # التحقق من نوع الملف (مع دعم الأحرف الكبيرة والصغيرة)
+            if uploaded_file.name.lower().endswith('.gz'):
                 print("📦 ملف مضغوط - فك الضغط...")
                 import gzip
                 import tempfile
@@ -969,10 +986,18 @@ def backup_upload(request, database_id=None):
                         print(f"❌ خطأ في فك الضغط: {str(gz_error)}")
                         raise
                     finally:
-                        # حذف الملف المؤقت
+                        # حذف الملف المؤقت مع معالجة أخطاء Windows
                         if os.path.exists(temp_path):
-                            os.unlink(temp_path)
-                            print(f"🗑️ تم حذف الملف المؤقت: {temp_path}")
+                            try:
+                                import time
+                                time.sleep(0.1)  # تأخير صغير للسماح لـ Windows بإغلاق الملف
+                                os.unlink(temp_path)
+                                print(f"🗑️ تم حذف الملف المؤقت: {temp_path}")
+                            except PermissionError:
+                                print(f"⚠️ لا يمكن حذف الملف المؤقت فوراً (مستخدم من عملية أخرى): {temp_path}")
+                                print("💡 سيتم حذفه تلقائياً عند إعادة تشغيل النظام")
+                            except Exception as cleanup_error:
+                                print(f"⚠️ خطأ في حذف الملف المؤقت: {str(cleanup_error)}")
             else:
                 print("📄 ملف JSON عادي - استعادة مباشرة...")
                 result = _restore_json_simple(file_path, clear_existing=clear_data)
@@ -1305,30 +1330,98 @@ def _restore_json_simple(file_path, clear_existing=False):
     try:
         print(f"📖 قراءة ملف JSON: {file_path}")
 
+        # التحقق من نوع الملف أولاً
+        if file_path.lower().endswith('.gz'):
+            raise ValueError("هذا ملف مضغوط (.gz). يجب فك ضغطه أولاً قبل استدعاء هذه الدالة.")
+
         with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+            data = json.load(f)        # التحقق من نوع البيانات مع تحسين التحقق
+        if not isinstance(data, list):
+            # التحقق من نوع الملف
+            if isinstance(data, dict):
+                # فحص إضافي للتأكد من أنه ليس service account credentials
+                if 'private_key' in data and 'client_email' in data and 'project_id' in data:
+                    raise ValueError("هذا الملف يبدو وكأنه ملف Google Service Account Credentials وليس نسخة احتياطية للنظام. يرجى رفع ملف نسخة احتياطية صالح بتنسيق Django fixture.")
+                elif 'model' in data and 'fields' in data:
+                    # إذا كان dictionary واحد بدلاً من قائمة، اجعله قائمة
+                    data = [data]
+                # فحص لتنسيقات أخرى قد تكون نسخ احتياطية
+                elif 'version' in data or 'created_at' in data or 'database' in data:
+                    # قد يكون تنسيق نسخة احتياطية آخر - محاولة التعامل معه
+                    print("⚠️ تنسيق نسخة احتياطية غير مألوف - سيتم تجاهل هذا الملف")
+                    raise ValueError("تنسيق النسخة الاحتياطية غير مدعوم. يرجى استخدام ملف بتنسيق Django fixture (JSON).")
+                else:
+                    raise ValueError("تنسيق الملف غير صالح. يجب أن يكون ملف JSON يحتوي على قائمة من البيانات أو بيانات Django fixture.")
+            else:
+                raise ValueError(f"تنسيق البيانات غير مدعوم: {type(data)}. يجب أن تكون البيانات عبارة عن قائمة أو قاموس.")
 
         print(f"✅ تم تحميل {len(data)} عنصر من الملف")
 
-        # ترتيب البيانات حسب الأولوية (الجداول التي لا تعتمد على غيرها أولاً)
+        # تحضير ContentTypes المطلوبة قبل بدء الاستعادة
+        print("🔧 التحضير لاستعادة شاملة...")
+        from django.contrib.contenttypes.models import ContentType
+        
+        # إنشاء ContentTypes للتطبيقات الأساسية إذا لم تكن موجودة
+        required_content_types = [
+            ('inventory', 'product'),
+            ('inventory', 'category'),
+            ('inventory', 'brand'),
+            ('inventory', 'warehouse'),
+            ('inventory', 'stocktransaction'),
+            ('orders', 'order'),
+            ('orders', 'orderitem'),
+            ('customers', 'customer'),
+            ('customers', 'customernote'),
+            ('inspections', 'inspection'),
+            ('installations', 'installation'),
+            ('reports', 'report'),
+            ('accounts', 'department'),
+            ('accounts', 'branch'),
+        ]
+        
+        for app_label, model_name in required_content_types:
+            try:
+                ContentType.objects.get_or_create(
+                    app_label=app_label,
+                    model=model_name
+                )
+            except Exception:
+                # تجاهل الأخطاء في إنشاء ContentTypes
+                pass
+        
+        print("✅ تم التحضير لاستعادة شاملة")        # ترتيب البيانات حسب الأولوية (الجداول التي لا تعتمد على غيرها أولاً)
         priority_order = [
+            # ContentTypes أولاً
+            'contenttypes.contenttype',
+            # المستخدمين والمجموعات
             'auth.user',
             'auth.group',
-            'auth.permission',
+            # الأقسام والفروع
             'accounts.department',
             'accounts.branch',
+            # الصلاحيات (بعد إنشاء ContentTypes)
+            'auth.permission',
+            # العملاء والفئات
             'customers.customer',
             'inventory.category',
             'inventory.brand',
+            # المنتجات والمستودعات
+            'inventory.warehouse',
             'inventory.product',
+            # الطلبات والفحوصات
             'orders.order',
+            'orders.orderitem',
             'inspections.inspection',
             'installations.installation',
+            # التقارير والنسخ الاحتياطية
             'reports.report',
             'odoo_db_manager.database',
             'odoo_db_manager.backup',
             'odoo_db_manager.backupschedule',
             'odoo_db_manager.importlog',
+            # المعاملات والملاحظات (في النهاية)
+            'inventory.stocktransaction',
+            'customers.customernote',
         ]
 
         # ترتيب البيانات
@@ -1346,6 +1439,29 @@ def _restore_json_simple(file_path, clear_existing=False):
                 remaining_data.append(item)
 
         final_data = sorted_data + remaining_data
+
+        # تطهير البيانات مسبقاً لإصلاح المشاكل المعروفة
+        print("🔧 تطهير البيانات المسبق...")
+        for item in final_data:
+            model_name = item.get('model', 'unknown')
+            fields = item.get('fields', {})
+            
+            # معالجة خاصة لـ SystemSettings
+            if model_name == 'accounts.systemsettings':
+                # تحويل default_currency إلى currency
+                if 'default_currency' in fields:
+                    default_curr = fields.pop('default_currency', 'SAR')
+                    fields['currency'] = default_curr
+                    print(f"🔄 تم تحويل default_currency إلى currency مسبقاً: {default_curr}")
+                
+                # إزالة خصائص قديمة أخرى
+                old_fields = ['timezone', 'date_format', 'time_format']
+                for field in old_fields:
+                    if field in fields:
+                        removed_value = fields.pop(field, None)
+                        print(f"🗑️ تم إزالة الخاصية القديمة {field}: {removed_value}")
+                
+                item['fields'] = fields
 
         # حذف البيانات القديمة إذا تم طلب ذلك
         if clear_existing:
@@ -1400,29 +1516,67 @@ def _restore_json_simple(file_path, clear_existing=False):
             
             for original_index, item, original_error in failed_items:
                 try:
-                    with transaction.atomic():
-                        # معالجة أخطاء محددة قبل المحاولة الثانية
+                    with transaction.atomic():                        # معالجة أخطاء محددة قبل المحاولة الثانية
                         item_copy = item.copy()
                         fields = item_copy.get('fields', {})
                         model_name = item_copy.get('model', 'unknown')
                         
+                        # معالجة مشاكل ContentType (الصلاحيات المفقودة)
+                        if 'ContentType matching query does not exist' in original_error:
+                            print(f"🔧 إصلاح مشكلة ContentType: {model_name}")
+                            # تجاهل هذا العنصر مؤقتاً وإنشاؤه لاحقاً
+                            continue
+                        
                         # معالجة مشاكل الصلاحيات
-                        if 'permission_id' in original_error and 'foreign key' in original_error:
+                        elif 'permission_id' in original_error and 'foreign key' in original_error:
                             print(f"🔧 إصلاح مشكلة الصلاحيات: {model_name}")
                             fields.pop('user_permissions', None)
                             fields.pop('groups', None)
                             item_copy['fields'] = fields
-                        
-                        # معالجة مشاكل الخصائص المفقودة
+                          # معالجة مشاكل الخصائص المفقودة
                         elif 'has no attribute' in original_error:
                             print(f"🔧 إصلاح مشكلة خاصية مفقودة: {model_name}")
-                            if 'default_currency' in original_error:
-                                fields.pop('default_currency', None)
-                                item_copy['fields'] = fields
+                            
+                            # معالجة خاصة لـ SystemSettings
+                            if model_name == 'accounts.systemsettings':
+                                # إزالة الخصائص القديمة وإضافة تعيين صحيح
+                                if 'default_currency' in original_error:
+                                    # إزالة default_currency وتعيين currency بدلاً منه
+                                    default_curr = fields.pop('default_currency', 'SAR')
+                                    if 'currency' not in fields:
+                                        fields['currency'] = default_curr
+                                    print(f"🔄 تم تحويل default_currency إلى currency: {default_curr}")
+                                
+                                # إزالة خصائص أخرى مفقودة
+                                problematic_fields = ['timezone', 'date_format', 'time_format']
+                                for field in problematic_fields:
+                                    if field in fields:
+                                        removed_value = fields.pop(field, None)
+                                        print(f"🗑️ تم إزالة الخاصية المفقودة {field}: {removed_value}")
+                            else:
+                                # معالجة عامة للموديلات الأخرى
+                                problematic_fields = ['default_currency', 'timezone', 'date_format', 'time_format']
+                                for field in problematic_fields:
+                                    if field in original_error and field in fields:
+                                        removed_value = fields.pop(field, None)
+                                        print(f"🗑️ تم إزالة الخاصية المفقودة {field}: {removed_value}")
+                            
+                            item_copy['fields'] = fields
                         
-                        # تجاهل المفاتيح الخارجية المفقودة
-                        elif 'foreign key constraint' in original_error:
-                            print(f"⚠️ تجاهل عنصر بمفتاح خارجي مفقود: {model_name}")
+                        # معالجة مشاكل المفاتيح الخارجية
+                        elif 'foreign key constraint' in original_error or 'violates foreign key constraint' in original_error:
+                            print(f"🔧 محاولة إصلاح مفتاح خارجي مفقود: {model_name}")
+                            # إزالة المفاتيح الخارجية المشكوك فيها
+                            foreign_key_fields = ['customer', 'user', 'order', 'product', 'category']
+                            for field in foreign_key_fields:
+                                if field in fields and fields[field] is None:
+                                    fields.pop(field, None)
+                            item_copy['fields'] = fields
+                        
+                        # معالجة مشاكل القيود الفريدة
+                        elif 'UNIQUE constraint failed' in original_error or 'duplicate key value' in original_error:
+                            print(f"🔧 إصلاح مشكلة التكرار: {model_name}")
+                            # تجاهل هذا العنصر إذا كان مكرراً
                             continue
                         
                         for obj in serializers.deserialize('json', json.dumps([item_copy])):
@@ -1438,6 +1592,57 @@ def _restore_json_simple(file_path, clear_existing=False):
 
             print(f"✅ نجحت المحاولة الثانية في استعادة {second_attempt_success} عنصر إضافي")
 
+        # محاولة ثالثة: إصلاح مشاكل ContentType المتبقية
+        remaining_failed = [item for item in failed_items if 'ContentType matching query does not exist' in item[2]]
+        if remaining_failed:
+            print(f"🔄 محاولة ثالثة لإصلاح {len(remaining_failed)} عنصر بمشاكل ContentType...")
+            
+            # إنشاء ContentTypes المفقودة أولاً
+            from django.contrib.contenttypes.models import ContentType
+            
+            third_attempt_success = 0
+            for original_index, item, original_error in remaining_failed:
+                try:
+                    with transaction.atomic():
+                        model_name = item.get('model', 'unknown')
+                        
+                        # محاولة إنشاء ContentType المفقود
+                        if model_name == 'auth.permission':
+                            fields = item.get('fields', {})
+                            content_type_info = fields.get('content_type', [])
+                            
+                            if content_type_info and len(content_type_info) >= 2:
+                                app_label = content_type_info[0]
+                                model_class = content_type_info[1]
+                                
+                                # محاولة إنشاء أو العثور على ContentType
+                                try:
+                                    content_type, created = ContentType.objects.get_or_create(
+                                        app_label=app_label,
+                                        model=model_class
+                                    )
+                                    if created:
+                                        print(f"🆕 تم إنشاء ContentType مفقود: {app_label}.{model_class}")
+                                except Exception as ct_error:
+                                    print(f"⚠️ لا يمكن إنشاء ContentType: {app_label}.{model_class} - {str(ct_error)[:100]}")
+                                    continue
+                        
+                        # الآن محاولة استعادة العنصر مرة أخرى
+                        for obj in serializers.deserialize('json', json.dumps([item])):
+                            obj.save()
+                        
+                        third_attempt_success += 1
+                        success_count += 1
+                        error_count -= 1
+                        print(f"✅ نجح إصلاح ContentType للعنصر {original_index + 1}")
+                        
+                except Exception as e:
+                    # تجاهل الأخطاء في المحاولة الثالثة
+                    pass
+            
+            if third_attempt_success > 0:
+                print(f"✅ نجحت المحاولة الثالثة في استعادة {third_attempt_success} عنصر إضافي")
+
         print(f"🎯 تمت الاستعادة: {success_count} عنصر بنجاح، {error_count} عنصر فشل نهائياً")
         
         if error_count > 0:
@@ -1449,9 +1654,13 @@ def _restore_json_simple(file_path, clear_existing=False):
             'total_count': len(final_data)
         }
 
+    except ValueError as ve:
+        # خطأ في تنسيق الملف
+        print(f"❌ خطأ في تنسيق الملف: {str(ve)}")
+        raise ve
     except Exception as e:
         print(f"❌ خطأ في قراءة الملف: {str(e)}")
-        raise
+        raise Exception(f"فشل في قراءة أو معالجة الملف: {str(e)}")
 
 
 # ==================== عروض Google Drive ====================
@@ -1755,36 +1964,27 @@ def _create_default_user(database):
         
         # إنشاء كلمة مرور مُشفرة
         hashed_password = make_password('admin123')
-        
-        # إدراج المستخدم الجديد
+          # إدراج المستخدم الجديد
         cursor.execute("""
             INSERT INTO accounts_user (
                 username, password, email, first_name, last_name,
                 is_staff, is_active, is_superuser, date_joined
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
-        """, (
-            'admin',
-            hashed_password,
-            'admin@example.com',
-            'مدير',
-            'النظام',
-            True,
-            True,
-            True
-        ))
-        
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, ('admin', hashed_password, 'admin@example.com', 'مدير', 'النظام', 
+              True, True, True, timezone.now()))        
+        conn.commit()
         cursor.close()
         conn.close()
         
-        print(f"تم إنشاء المستخدم الافتراضي admin في قاعدة البيانات {database.name}")
+        print("تم إنشاء المستخدم admin بنجاح")
         return True
         
     except Exception as e:
-        print(f"خطأ في إنشاء المستخدم الافتراضي: {str(e)}")
+        print(f"خطأ في إنشاء المستخدم admin: {str(e)}")
         return False
 
+
 def _apply_migrations_to_database(database):
-    """تطبيق migrations في قاعدة البيانات الجديدة"""
     try:
         import subprocess
         import os

@@ -5,6 +5,9 @@ Django==4.2.21
 django-environ==0.12.0
 django-debug-toolbar==4.2.0
 django-extensions==3.2.3
+django-apscheduler==0.8.0
+django-dbbackup==4.2.1
+python-dotenv==1.0.1
 
 # REST Framework & API
 djangorestframework==3.14.0
@@ -150,3 +153,15 @@ threadpoolctl==3.6.0
 typing_extensions==4.14.0
 tzdata==2025.2
 tzlocal==5.3.1
+
+# حزم مضافة تلقائياً في 2025-06-19 15:32:48
+django-apscheduler==0.8.0
+django-dbbackup==4.2.1
+python-dotenv==1.0.1
+asgiref==3.8.1
+coreschema==0.0.4
+cycler==0.12.1
+iniconfig==2.1.0
+pluggy==1.6.0
+pytz==2025.2
+PyYAML==6.0.2
