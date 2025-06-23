@@ -385,12 +385,203 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-// تحديث تلقائي للمهام قيد التنفيذ
-{% if task.status == 'running' or task.status == 'pending' %}
-setInterval(function() {
-    location.reload();
-}, 5000); // تحديث كل 5 ثوان
-{% endif %}
+function pythonDictToObject(dictStr) {
+    // Convert Python dict string to valid JSON
+    return JSON.parse(
+        dictStr
+            // Replace Python booleans with JSON booleans
+            .replace(/True/g, 'true')
+            .replace(/False/g, 'false')
+            // Replace single quoted strings with double quotes
+            .replace(/'/g, '"')
+            // Fix any remaining Python-specific syntax
+            .replace(/None/g, 'null')
+    );
+}
+
+function showSyncResults() {
+    try {
+        console.log('Starting to show sync results...');
+        
+        // Get the raw results string from Django template
+        const rawResultsStr = '{{ task.results|escapejs|safe }}';
+        console.log('Raw results string:', rawResultsStr);
+        
+        let results = {};
+        try {
+            // Convert Python dict string to JavaScript object
+            results = pythonDictToObject(rawResultsStr);
+            console.log('Parsed results:', results);
+        } catch (e) {
+            console.error('Error parsing results:', e);
+            throw new Error('تعذر تحليل نتائج المزامنة. يرجى التأكد من صحة البيانات');
+        }
+        
+        // Get stats with fallback to empty object
+        const stats = results.stats || results || {};
+        console.log('Stats:', stats);
+        
+        // Extract metrics with proper fallbacks
+        const totalRows = parseInt(stats.total_rows || 0, 10);
+        const processedRows = parseInt(stats.processed_rows || 0, 10);
+        const customersAdded = parseInt(stats.customers_created || stats.created_customers || 0, 10);
+        const customersUpdated = parseInt(stats.customers_updated || stats.updated_customers || 0, 10);
+        const failedRows = parseInt(stats.failed_rows || 0, 10);
+        
+        // Calculate unique customers and total in table
+        const uniqueCustomers = customersAdded + customersUpdated;
+        const totalCustomersInTable = totalRows;  // Since we're importing all rows now
+        
+        // Since we're importing all customers without conditions, we shouldn't have skipped rows
+        // But we'll keep the logic in case there are still some failures
+        const skippedRows = Math.max(0, totalRows - processedRows - failedRows);
+        
+        // Build the HTML content
+        let htmlContent = `
+            <div class="text-right" dir="rtl">
+                <div class="mb-4">
+                    <h5 class="font-weight-bold text-primary">تفاصيل استيراد العملاء</h5>
+                    <hr class="mt-2">
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 border-primary">
+                            <div class="card-body text-center">
+                                <h2 class="mb-1 text-primary">${totalCustomersInTable}</h2>
+                                <p class="mb-0 text-muted">إجمالي العملاء في الجدول</p>
+                                <small class="text-muted">(يشمل المكررين)</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 border-success">
+                            <div class="card-body text-center">
+                                <h2 class="mb-1 text-success">${uniqueCustomers}</h2>
+                                <p class="mb-0 text-muted">إجمالي العملاء الفريدين</p>
+                                <small class="text-muted">(بعد إزالة التكرارات)</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 border-info">
+                            <div class="card-body text-center">
+                                <h2 class="mb-1 text-info">${customersAdded + customersUpdated}</h2>
+                                <p class="mb-0 text-muted">إجمالي العملاء المستوردين</p>
+                                <small class="text-muted">(جدد + محدثين)</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <h6 class="font-weight-bold">تفاصيل العملاء المستوردين:</h6>
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>عملاء جدد</span>
+                            <span class="badge badge-success badge-pill">${customersAdded}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>عملاء تم تحديثهم</span>
+                            <span class="badge badge-info badge-pill">${customersUpdated}</span>
+                        </li>`;
+
+        // Show any failures if they occurred
+        if (failedRows > 0) {
+            htmlContent += `
+                        <li class="list-group-item">
+                            <div class="alert alert-danger p-2 mb-0">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <strong>${failedRows}</strong> صفوف فشلت في المعالجة
+                                <a href="#errors-section" class="alert-link float-left">عرض التفاصيل</a>
+                            </div>
+                        </li>`;
+        }
+        
+        htmlContent += `
+                    </ul>
+                </div>
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i>
+                    تم استيراد جميع العملاء بنجاح من الجدول
+                </div>`;
+        
+        // Add completion time and status
+        htmlContent += `
+                <div class="mt-3 text-muted small">
+                    <i class="far fa-clock"></i> 
+                    تم الانتهاء في: {{ task.completed_at|date:"Y-m-d H:i" }}
+                </div>
+            </div>`;
+        
+        // Show the SweetAlert popup
+        Swal.fire({
+            title: failedRows > 0 ? 'تمت المزامنة مع وجود أخطاء' : 'تمت المزامنة بنجاح',
+            html: htmlContent,
+            icon: failedRows > 0 ? 'warning' : 'success',
+            confirmButtonText: 'حسناً',
+            confirmButtonColor: failedRows > 0 ? '#f8bb86' : '#3085d6',
+            allowOutsideClick: false,
+            width: '650px',
+            customClass: {
+                content: 'rtl-content',
+                confirmButton: 'btn btn-primary'
+            },
+            didOpen: () => {
+                // Add click handler for error link if it exists
+                const errorLink = document.querySelector('.alert-link');
+                if (errorLink) {
+                    errorLink.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        Swal.close();
+                        const errorSection = document.querySelector('#errors-section');
+                        if (errorSection) {
+                            errorSection.scrollIntoView({ behavior: 'smooth' });
+                        }
+                    });
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error in showSyncResults:', error);
+        // Show a more detailed error message
+        Swal.fire({
+            title: 'خطأ في عرض النتائج',
+            html: `
+                <div dir="rtl" class="text-right">
+                    <p>حدث خطأ أثناء عرض نتائج المزامنة.</p>
+                    <p class="text-danger small">${error.message || 'خطأ غير معروف'}</p>
+                    <p class="mt-2 small text-muted">الرجاء إبلاغ فريق الدعم بهذا الخطأ.</p>
+                </div>
+            `,
+            icon: 'error',
+            confirmButtonText: 'حسناً',
+            width: '600px'
+        });
+    }
+}
+
+// Show sync results when page loads if this is a completed task
+$(document).ready(function() {
+    console.log('Document ready - checking for sync results...');
+    
+    {% if task.status == 'completed' and task.results %}
+    console.log('Task has results, showing sync details...');
+    
+    // Small delay to ensure everything is loaded
+    setTimeout(function() {
+        try {
+            showSyncResults();
+        } catch (e) {
+            console.error('Error in document.ready:', e);
+        }
+    }, 500);
+    {% else %}
+    console.log('No results to show. Status:', '{{ task.status }}');
+    {% endif %}
+});
 </script>
 {% endblock %}

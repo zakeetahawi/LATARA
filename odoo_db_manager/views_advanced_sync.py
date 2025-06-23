@@ -214,6 +214,25 @@ def mapping_create(request):
                         if value and value != 'ignore':
                             column_mappings[column_name] = value
 
+                # حماية: تحويل أي اسم عمود إلى رقم العمود الصحيح
+                headers = []
+                try:
+                    importer = GoogleSheetsImporter()
+                    importer.initialize()
+                    headers = importer.get_sheet_data(sheet_name)[int(request.POST.get('header_row', 1)) - 1]
+                except Exception:
+                    pass
+                new_mappings = {}
+                changed = False
+                for k, v in column_mappings.items():
+                    if headers and k in headers:
+                        col_index = headers.index(k)
+                        new_mappings[str(col_index)] = v
+                        changed = True
+                    else:
+                        new_mappings[str(k)] = v
+                if changed:
+                    messages.info(request, 'تم تحويل أسماء الأعمدة إلى أرقام تلقائيًا لضمان سلامة المزامنة.')
                 # إنشاء التعيين
                 mapping = GoogleSheetMapping.objects.create(
                     name=request.POST.get('name'),
@@ -221,7 +240,7 @@ def mapping_create(request):
                     sheet_name=sheet_name,
                     header_row=int(request.POST.get('header_row', 1)),
                     start_row=int(request.POST.get('start_row', 2)),
-                    column_mappings=column_mappings,  # حفظ تعيينات الأعمدة
+                    column_mappings=new_mappings,  # حفظ تعيينات الأعمدة
                     auto_create_customers=request.POST.get('auto_create_customers') == 'on',
                     auto_create_orders=request.POST.get('auto_create_orders') == 'on',
                     auto_create_inspections=request.POST.get('auto_create_inspections') == 'on',
@@ -578,11 +597,27 @@ def mapping_update_columns(request, mapping_id):
                 if value and value != 'ignore':
                     column_mappings[column_name] = value
 
-        print(f"POST data: {dict(request.POST)}")
-        print(f"Column mappings: {column_mappings}")
-
+        # حماية: تحويل أي اسم عمود إلى رقم العمود الصحيح
+        headers = []
+        try:
+            importer = GoogleSheetsImporter()
+            importer.initialize()
+            headers = importer.get_sheet_data(mapping.sheet_name)[mapping.header_row - 1]
+        except Exception:
+            pass
+        new_mappings = {}
+        changed = False
+        for k, v in column_mappings.items():
+            if headers and k in headers:
+                col_index = headers.index(k)
+                new_mappings[str(col_index)] = v
+                changed = True
+            else:
+                new_mappings[str(k)] = v
+        if changed:
+            messages.info(request, 'تم تحويل أسماء الأعمدة إلى أرقام تلقائيًا لضمان سلامة المزامنة.')
         # التحقق من صحة التعيينات
-        mapping.column_mappings = column_mappings
+        mapping.column_mappings = new_mappings
         errors = mapping.validate_mappings()
 
         if errors:

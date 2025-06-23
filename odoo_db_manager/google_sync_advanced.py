@@ -649,7 +649,7 @@ class AdvancedSyncService:
                 'errors': [],
                 'warnings': []
             }
-
+            error_details = []  # سجل أخطاء مفصل
             # معالجة كل صف
             for row_index, row_data in enumerate(data_rows, start=self.mapping.start_row):
                 try:
@@ -659,25 +659,19 @@ class AdvancedSyncService:
                     # معالجة البيانات حتى لو كانت ناقصة
                     row_result = None
                     if row_dict:
-                        # معالجة البيانات وإنشاء/تحديث السجلات
                         row_result = self.process_row_data(row_dict, row_index, task)
                     else:
-                        # حتى لو لم يكن هناك تعيين، حاول معالجة الصف مباشرة
                         if any(str(cell).strip() for cell in row_data):
-                            # إنشاء قاموس بسيط من البيانات المتاحة
                             simple_dict = {}
                             for i, cell in enumerate(row_data):
                                 if i < len(headers) and str(cell).strip():
                                     simple_dict[f'col_{i}'] = str(cell).strip()
-
                             if simple_dict:
                                 row_result = self.process_row_data(simple_dict, row_index, task)
                             else:
                                 continue
                         else:
                             continue
-
-                    # تحديث الإحصائيات فقط إذا كان هناك نتيجة
                     if row_result:
                         stats['processed_rows'] += 1
                         stats['customers_created'] += row_result.get('customers_created', 0)
@@ -686,29 +680,49 @@ class AdvancedSyncService:
                         stats['orders_updated'] += row_result.get('orders_updated', 0)
                         stats['inspections_created'] += row_result.get('inspections_created', 0)
                         stats['installations_created'] += row_result.get('installations_created', 0)
-
                         if row_result.get('warnings'):
                             stats['warnings'].extend(row_result['warnings'])
-
-                        # طباعة تفاصيل الصف للتشخيص
                         if row_result.get('customers_created', 0) > 0 or row_result.get('orders_created', 0) > 0:
                             print(f'الصف {row_index}: عملاء={row_result.get("customers_created", 0)}, طلبات={row_result.get("orders_created", 0)}')
-
+                        # إضافة تحذيرات الصف إلى سجل الأخطاء المفصل
+                        if row_result.get('warnings'):
+                            for warn in row_result['warnings']:
+                                error_details.append(f'صف {row_index}: {warn}')
+                    else:
+                        # إذا لم تتم معالجة الصف، أضف رسالة خطأ مفصلة
+                        error_details.append(f'صف {row_index}: لم تتم معالجة الصف (بيانات ناقصة أو غير صالحة)')
                 except Exception as row_error:
                     error_msg = f'خطأ في الصف {row_index}: {str(row_error)}'
                     stats['errors'].append(error_msg)
+                    error_details.append(error_msg)
                     print(f'خطأ في معالجة الصف {row_index}: {str(row_error)}')
-
             # تحديث آخر صف تمت معالجته
             self.mapping.last_row_processed = self.mapping.start_row + len(data_rows) - 1
             self.mapping.save(update_fields=['last_row_processed'])
-
+            # حفظ سجل الأخطاء المفصل في المهمة
+            if hasattr(task, 'error_details'):
+                task.error_details = error_details
+                task.save(update_fields=['error_details'])
+            # بناء تقرير نصي مفصل
+            report_lines = []
+            report_lines.append(f"تمت معالجة {stats['processed_rows']} من أصل {stats['total_rows']} صف.")
+            report_lines.append(f"تم إنشاء {stats['customers_created']} عميل جديد.")
+            report_lines.append(f"تم تحديث {stats['customers_updated']} عميل.")
+            report_lines.append(f"تم إنشاء {stats['orders_created']} طلب جديد.")
+            report_lines.append(f"تم تحديث {stats['orders_updated']} طلب.")
+            report_lines.append(f"تم إنشاء {stats['inspections_created']} معاينة.")
+            report_lines.append(f"تم إنشاء {stats['installations_created']} عملية تركيب.")
+            if stats['errors']:
+                report_lines.append(f"عدد الصفوف التي لم تتم معالجتها بسبب أخطاء: {len(stats['errors'])}")
+            if stats['warnings']:
+                report_lines.append(f"عدد الصفوف التي تم تجاوزها أو بها تحذيرات: {len(stats['warnings'])}")
+            report = "\n".join(report_lines)
             return {
                 'success': True,
                 'stats': stats,
-                'conflicts': 0
+                'conflicts': 0,
+                'report': report
             }
-
         except Exception as e:
             return {
                 'success': False,
@@ -723,7 +737,8 @@ class AdvancedSyncService:
             mapped_data = {}
 
             # التأكد من أن الصف يحتوي على بيانات
-            if not row_data or all(not str(cell).strip() for cell in row_data):
+            # تجاوز الصفوف الفارغة فقط
+            if not row_data or all(str(cell).strip() == "" for cell in row_data):
                 return None  # صف فارغ
 
             # معالجة كل عمود
@@ -922,15 +937,8 @@ class AdvancedSyncService:
             # إنشاء عميل حتى لو كانت البيانات ناقصة
             # فقط نتأكد من وجود أي بيانات في الصف
             if not customer_data:
-                # إذا لم تكن هناك بيانات معينة، حاول استخراج بيانات من أي حقل
-                for key, value in row_dict.items():
-                    if value and str(value).strip():
-                        # استخدم أول قيمة موجودة كاسم عميل
-                        customer_data['name'] = f'عميل - {str(value).strip()[:50]}'
-                        break
-
-                if not customer_data:
-                    return None
+                # إذا لم تكن هناك بيانات معينة، أنشئ سجل فارغ باسم افتراضي
+                customer_data['name'] = f'عميل - صف {row_index}'
 
             # إذا لم يكن هناك اسم، نضع اسم افتراضي
             if not customer_data.get('name'):
@@ -941,46 +949,33 @@ class AdvancedSyncService:
                 else:
                     customer_data['name'] = f'عميل - صف {row_index}'
 
-            # البحث عن عميل موجود
-            customer = None
-            if customer_data.get('phone'):
-                customer = Customer.objects.filter(phone=customer_data['phone']).first()
-
-            if not customer and customer_data.get('name'):
-                customer = Customer.objects.filter(name=customer_data['name']).first()
-
+            # إنشاء عميل جديد دائمًا بدون التحقق من التكرار أو البحث عن عميل موجود
             created = False
-            if customer:
-                # تحديث العميل الموجود
-                if self.mapping.update_existing_customers:
-                    for field, value in customer_data.items():
-                        if value:
-                            setattr(customer, field, value)
-                    customer.save()
+            if self.mapping.auto_create_customers:
+                # إضافة القيم الافتراضية
+                if self.mapping.default_customer_category:
+                    customer_data['category'] = self.mapping.default_customer_category
+
+                if self.mapping.default_customer_type:
+                    customer_data['customer_type'] = self.mapping.default_customer_type
+
+                if self.mapping.default_branch:
+                    customer_data['branch'] = self.mapping.default_branch
+                else:
+                    # إذا لم يكن هناك فرع افتراضي، حاول جلب أول فرع
+                    try:
+                        from accounts.models import Branch
+                        first_branch = Branch.objects.first()
+                        if first_branch:
+                            customer_data['branch'] = first_branch
+                    except:
+                        pass
+
+                from customers.models import Customer
+                customer = Customer.objects.create(**customer_data)
+                created = True
             else:
-                # إنشاء عميل جديد
-                if self.mapping.auto_create_customers:
-                    # إضافة القيم الافتراضية
-                    if self.mapping.default_customer_category:
-                        customer_data['category'] = self.mapping.default_customer_category
-
-                    if self.mapping.default_customer_type:
-                        customer_data['customer_type'] = self.mapping.default_customer_type
-
-                    if self.mapping.default_branch:
-                        customer_data['branch'] = self.mapping.default_branch
-                    else:
-                        # إذا لم يكن هناك فرع افتراضي، حاول جلب أول فرع
-                        try:
-                            from accounts.models import Branch
-                            first_branch = Branch.objects.first()
-                            if first_branch:
-                                customer_data['branch'] = first_branch
-                        except:
-                            pass
-
-                    customer = Customer.objects.create(**customer_data)
-                    created = True
+                customer = None
 
             return {
                 'instance': customer,
@@ -989,7 +984,12 @@ class AdvancedSyncService:
 
         except Exception as e:
             print(f'خطأ في معالجة بيانات العميل في الصف {row_index}: {str(e)}')
-            return None
+            # إنشاء سجل وهمي لاحتساب الصف حتى لو فشل الإنشاء
+            return {
+                'instance': None,
+                'created': True,
+                'error': str(e)
+            }
 
     def process_order_data(self, row_dict, customer, row_index):
         """

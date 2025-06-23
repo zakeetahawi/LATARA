@@ -178,28 +178,68 @@ class AdvancedSyncService:
             return []
 
     def _process_row(self, row_data: List[str], row_index: int, task: GoogleSyncTask):
-        """معالجة صف واحد من البيانات"""
+        """
+        معالجة صف واحد من البيانات
+        
+        المعلمات:
+            row_data: قائمة بقيم الصف
+            row_index: رقم الصف في الجدول (يبدأ من 1)
+            task: مهمة المزامنة الحالية
+        """
         try:
+            # تسجيل بيانات الصف للتصحيح
+            logger.debug(f"[DEBUG] معالجة الصف {row_index}: {row_data}")
+            
+            # تخطي الصفوف الفارغة
+            if not any(cell and str(cell).strip() for cell in row_data):
+                logger.info(f"[INFO] تخطي الصف {row_index}: صف فارغ")
+                return
+
             # تحويل البيانات إلى قاموس
             mapped_data = self._map_row_data(row_data)
+            logger.debug(f"[DEBUG] البيانات المعالجة للصف {row_index}: {mapped_data}")
 
             # معالجة العميل
             customer = self._process_customer(mapped_data, row_index, task)
+            if not customer:
+                logger.info(f"[INFO] تخطي الصف {row_index}: لم يتم معالجة العميل")
+                return
 
             # معالجة الطلب
             order = self._process_order(mapped_data, customer, row_index, task)
+            if not order and self.mapping.auto_create_orders:
+                logger.info(f"[INFO] تخطي الصف {row_index}: لم يتم معالجة الطلب")
+                return
 
             # معالجة المعاينة
             if self.mapping.auto_create_inspections and order:
-                self._process_inspection(mapped_data, customer, order, row_index, task)
+                inspection = self._process_inspection(mapped_data, customer, order, row_index, task)
+                if not inspection and self.mapping.require_inspection:
+                    logger.info(f"[INFO] تخطي الصف {row_index}: لم يتم معالجة المعاينة")
+                    return
 
             # معالجة التركيب
             if self.mapping.auto_create_installations and order:
-                self._process_installation(mapped_data, customer, order, row_index, task)
+                installation = self._process_installation(mapped_data, customer, order, row_index, task)
+                if not installation and self.mapping.require_installation:
+                    logger.info(f"[INFO] تخطي الصف {row_index}: لم يتم معالجة التركيب")
+                    return
+
+            logger.debug(f"[DEBUG] تمت معالجة الصف {row_index} بنجاح")
 
         except Exception as e:
-            logger.error(f"خطأ في معالجة الصف {row_index}: {str(e)}")
-            raise
+            error_msg = f"خطأ في معالجة الصف {row_index}: {str(e)}"
+            logger.error(error_msg)
+            logger.exception(e)
+            self.stats['failed_rows'] += 1
+            
+            # تسجيل الخطأ في المهمة إذا كانت متوفرة
+            if hasattr(task, 'add_error'):
+                task.add_error(f"خطأ في الصف {row_index}: {str(e)}")
+            
+            # إعادة رفع الاستثناء إذا كنا في وضع التصحيح
+            if settings.DEBUG:
+                raise
 
     def _map_row_data(self, row_data: List[str]) -> Dict[str, str]:
         """تحويل بيانات الصف إلى قاموس مع التعيينات"""
@@ -214,44 +254,73 @@ class AdvancedSyncService:
 
     def _process_customer(self, mapped_data: Dict[str, str], row_index: int,
                          task: GoogleSyncTask) -> Optional[Customer]:
-        """معالجة بيانات العميل"""
+        """
+        معالجة بيانات العميل - يتم تخطي الصفوف التي لا تحتوي على اسم العميل فقط
+        
+        المعلمات:
+            mapped_data: بيانات العميل المعالجة
+            row_index: رقم الصف في الجدول
+            task: مهمة المزامنة الحالية
+        
+        العائد:
+            كائن العميل إذا تمت معالجته بنجاح، أو None إذا تم تخطيه
+        """
         try:
             customer_name = mapped_data.get('customer_name', '').strip()
             if not customer_name:
+                logger.info(f"[DEBUG] تخطي الصف {row_index}: لا يوجد اسم عميل")
                 return None
 
             customer_phone = mapped_data.get('customer_phone', '').strip()
             customer_email = mapped_data.get('customer_email', '').strip()
+            
+            logger.debug(f"[DEBUG] معالجة العميل - الصف {row_index}: الاسم='{customer_name}', الهاتف='{customer_phone}', البريد='{customer_email}'")
 
-            # البحث عن العميل الموجود
+            # البحث عن العميل الموجود بناءً على رقم الهاتف أو البريد الإلكتروني أو الاسم
             customer = None
             if customer_phone:
                 customer = Customer.objects.filter(phone=customer_phone).first()
-
+                if customer:
+                    logger.debug(f"[DEBUG] تم العثور على العميل بالهاتف: {customer_phone}")
+            
             if not customer and customer_email:
                 customer = Customer.objects.filter(email=customer_email).first()
-
+                if customer:
+                    logger.debug(f"[DEBUG] تم العثور على العميل بالبريد الإلكتروني: {customer_email}")
+            
             if not customer and customer_name:
                 customer = Customer.objects.filter(name=customer_name).first()
+                if customer:
+                    logger.debug(f"[DEBUG] تم العثور على العميل بالاسم: {customer_name}")
 
             # إنشاء أو تحديث العميل
             if customer:
                 if self.mapping.update_existing_customers:
+                    logger.debug(f"[DEBUG] تحديث بيانات العميل الموجود: {customer_name} (ID: {customer.id})")
                     self._update_customer(customer, mapped_data)
                     self.stats['updated_customers'] += 1
+                    logger.debug(f"[DEBUG] تم تحديث العميل: {customer_name} (ID: {customer.id})")
+                else:
+                    logger.debug(f"[DEBUG] تم العثور على العميل ولكن تحديث العملاء الحاليين معطل: {customer_name}")
             else:
                 if self.mapping.auto_create_customers:
+                    logger.debug(f"[DEBUG] إنشاء عميل جديد: {customer_name}")
                     customer = self._create_customer(mapped_data)
                     self.stats['created_customers'] += 1
+                    logger.debug(f"[DEBUG] تم إنشاء عميل جديد: {customer_name} (ID: {customer.id})")
+                else:
+                    logger.debug(f"[DEBUG] لم يتم إنشاء عميل جديد - الإنشاء التلقائي معطل")
 
             return customer
 
         except Exception as e:
-            logger.error(f"خطأ في معالجة العميل في الصف {row_index}: {str(e)}")
+            error_msg = f"خطأ في معالجة العميل في الصف {row_index}: {str(e)}"
+            logger.error(error_msg)
+            logger.exception(e)
             raise
 
     def _create_customer(self, mapped_data: Dict[str, str]) -> Customer:
-        """إنشاء عميل جديد"""
+        """إنشاء عميل جديد مع احترام الكود والإعدادات الافتراضية"""
         customer_data = {
             'name': mapped_data.get('customer_name', ''),
             'phone': mapped_data.get('customer_phone', ''),
@@ -260,37 +329,70 @@ class AdvancedSyncService:
             'address': mapped_data.get('customer_address', ''),
         }
 
-        # تحديد الفرع
+        # تعيين الكود من الجدول إذا كان موجوداً، وإلا لا يتم توليد كود عشوائي
+        if mapped_data.get('code'):
+            customer_data['code'] = mapped_data['code']
+        # إذا لم يوجد كود في الجدول، لا يتم تعيينه (يترك للنظام أو قاعدة البيانات)
+
+        # تحديد الفرع من الجدول أو من الإعدادات الافتراضية
         branch_name = mapped_data.get('branch', '')
+        branch = None
         if branch_name:
             branch = Branch.objects.filter(name__icontains=branch_name).first()
-            if branch:
-                customer_data['branch'] = branch
+        if not branch and self.mapping.default_branch:
+            branch = self.mapping.default_branch
+        if branch:
+            customer_data['branch'] = branch
 
-        # إنشاء كود العميل تلقائياً
-        customer_data['code'] = self._generate_customer_code()
+        # تعيين تصنيف العميل الافتراضي إذا لم يوجد
+        if not mapped_data.get('customer_category') and self.mapping.default_customer_category:
+            customer_data['category'] = self.mapping.default_customer_category
+
+        # تعيين نوع العميل الافتراضي إذا لم يوجد
+        if not mapped_data.get('customer_type') and self.mapping.default_customer_type:
+            customer_data['customer_type'] = self.mapping.default_customer_type
+
+        # تعيين تاريخ الإنشاء حسب الإعدادات
+        if self.mapping.use_current_date_as_created:
+            from django.utils import timezone
+            customer_data['created_at'] = timezone.now()
 
         return Customer.objects.create(**customer_data)
 
     def _update_customer(self, customer: Customer, mapped_data: Dict[str, str]):
-        """تحديث بيانات العميل"""
+        """تحديث بيانات العميل مع تجاهل القيم الفارغة والمسافات البيضاء"""
         updated = False
 
-        # تحديث الحقول إذا كانت فارغة أو مختلفة
-        if mapped_data.get('customer_phone2') and not customer.phone2:
-            customer.phone2 = mapped_data['customer_phone2']
+        def clean_value(value):
+            """تنظيف القيمة وإرجاعها إذا كانت تحتوي على محتوى حقيقي"""
+            if value is None:
+                return None
+            value = str(value).strip()
+            return value if value else None
+
+        # تحديث الحقول إذا كانت تحتوي على قيم حقيقية (ليست فارغة أو مسافات بيضاء فقط)
+        phone2 = clean_value(mapped_data.get('customer_phone2'))
+        if phone2 is not None and not customer.phone2:
+            customer.phone2 = phone2
             updated = True
 
-        if mapped_data.get('customer_email') and not customer.email:
-            customer.email = mapped_data['customer_email']
+        email = clean_value(mapped_data.get('customer_email'))
+        if email is not None and not customer.email:
+            customer.email = email
             updated = True
 
-        if mapped_data.get('customer_address') and customer.address != mapped_data['customer_address']:
-            customer.address = mapped_data['customer_address']
+        address = clean_value(mapped_data.get('customer_address'))
+        if address is not None and customer.address != address:
+            customer.address = address
             updated = True
 
         if updated:
             customer.save()
+            logger.debug(f"تم تحديث بيانات العميل: {customer.id} - {customer.name}")
+        else:
+            logger.debug(f"لم يتم تحديث بيانات العميل {customer.id} - لم يتم العثور على تغييرات")
+
+        return updated
 
     def _process_order(self, mapped_data: Dict[str, str], customer: Customer,
                       row_index: int, task: GoogleSyncTask) -> Optional[Order]:
@@ -589,9 +691,196 @@ class AdvancedSyncService:
         return []
 
     def _update_sheets_data(self, system_data: List[Dict[str, Any]], task: GoogleSyncTask):
-        """تحديث بيانات Google Sheets"""
-        # هذه الدالة ستحتاج تطوير أكثر حسب متطلبات المزامنة العكسية
-        pass
+        """
+        تحديث بيانات Google Sheets بالبيانات من النظام
+        
+        المعلمات:
+            system_data: قائمة بالبيانات من النظام للمزامنة
+            task: مهمة المزامنة الحالية
+        """
+        if not system_data:
+            logger.info("لا توجد بيانات للمزامنة مع Google Sheets")
+            return
+
+        try:
+            # الحصول على بيانات الورقة الحالية
+            sheet_data = self._get_sheet_data()
+            if not sheet_data or len(sheet_data) < 2:  # يجب أن تحتوي على العناوين على الأقل
+                logger.error("لا يمكن تحديث الورقة - لم يتم العثور على بيانات أو عناوين")
+                return
+
+            # الحصول على العناوين
+            headers = sheet_data[0]
+            
+            # إنشاء قاموس لتعيين معرفات الصفوف
+            row_map = {}
+            for idx, row in enumerate(sheet_data[1:], start=2):  # الصفوف تبدأ من 2 (1 للعناوين)
+                if len(row) > 0:  # التأكد من وجود معرف
+                    row_map[str(row[0])] = idx  # حفظ رقم الصف
+
+            # تجهيز البيانات للتحديث
+            updates = []
+            
+            for record in system_data:
+                if not record:
+                    continue
+                    
+                record_id = str(record.get('id', ''))
+                if not record_id:
+                    continue
+
+                # إعداد بيانات الصف المحدثة
+                updated_row = []
+                for header in headers:
+                    # استخدام القيمة المحدثة إذا كانت موجودة، وإلا استخدم القيمة الفارغة
+                    updated_row.append(str(record.get(header, '')))
+
+                
+                # إضافة الصف المحدث إلى قائمة التحديثات
+                if record_id in row_map:
+                    # تحديث صف موجود
+                    updates.append({
+                        'range': f"{self.mapping.sheet_name}!A{row_map[record_id]}:{chr(64 + len(headers))}{row_map[record_id]}",
+                        'values': [updated_row]
+                    })
+                else:
+                    # إضافة صف جديد
+                    updates.append({
+                        'range': f"{self.mapping.sheet_name}!A{len(sheet_data) + 1}:{chr(64 + len(headers))}{len(sheet_data) + 1}",
+                        'values': [updated_row]
+                    })
+                    # تحديث row_map للصفوف المضافة
+                    row_map[record_id] = len(sheet_data) + 1
+                    sheet_data.append(updated_row)
+
+            if not updates:
+                logger.info("لا توجد تحديثات مطلوبة")
+                return
+
+            # تنفيذ التحديثات
+            body = {
+                'value_input_option': 'USER_ENTERED',
+                'data': updates
+            }
+            
+            # استخدام خدمة Google Sheets API
+            service = self.importer.service
+            if not service:
+                logger.error("فشل الاتصال بخدمة Google Sheets")
+                return
+                
+            response = service.spreadsheets().values().batchUpdate(
+                spreadsheetId=self.mapping.spreadsheet_id,
+                body=body
+            ).execute()
+            
+            logger.info(f"تم تحديث {len(updates)} صفوف في Google Sheets بنجاح")
+            
+            # تحديث إحصائيات المهمة
+            task.rows_updated = len(updates)
+            task.save(update_fields=['rows_updated', 'updated_at'])
+            
+        except Exception as e:
+            error_msg = f"خطأ في تحديث Google Sheets: {str(e)}"
+            logger.error(error_msg)
+            logger.exception(e)
+            raise Exception(error_msg) from e
+
+    def _update_sheets_data(self, system_data: List[Dict[str, Any]], task: GoogleSyncTask):
+        """
+        تحديث بيانات Google Sheets بالبيانات من النظام
+        
+        المعلمات:
+            system_data: قائمة بالبيانات من النظام للمزامنة
+            task: مهمة المزامنة الحالية
+        """
+        if not system_data:
+            logger.info("لا توجد بيانات للمزامنة مع Google Sheets")
+            return
+
+        try:
+            # الحصول على بيانات الورقة الحالية
+            sheet_data = self._get_sheet_data()
+            if not sheet_data or len(sheet_data) < 2:  # يجب أن تحتوي على العناوين على الأقل
+                logger.error("لا يمكن تحديث الورقة - لم يتم العثور على بيانات أو عناوين")
+                return
+
+            # الحصول على العناوين
+            headers = sheet_data[0]
+            
+            # إنشاء قاموس لتعيين معرفات الصفوف
+            row_map = {}
+            for idx, row in enumerate(sheet_data[1:], start=2):  # الصفوف تبدأ من 2 (1 للعناوين)
+                if len(row) > 0:  # التأكد من وجود معرف
+                    row_map[str(row[0])] = idx  # حفظ رقم الصف
+
+            # تجهيز البيانات للتحديث
+            updates = []
+            
+            for record in system_data:
+                if not record:
+                    continue
+                    
+                record_id = str(record.get('id', ''))
+                if not record_id:
+                    continue
+
+                # إعداد بيانات الصف المحدثة
+                updated_row = []
+                for header in headers:
+                    # استخدام القيمة المحدثة إذا كانت موجودة، وإلا استخدم القيمة الفارغة
+                    updated_row.append(str(record.get(header, '')))
+
+                
+                # إضافة الصف المحدث إلى قائمة التحديثات
+                if record_id in row_map:
+                    # تحديث صف موجود
+                    updates.append({
+                        'range': f"{self.mapping.sheet_name}!A{row_map[record_id]}:{chr(64 + len(headers))}{row_map[record_id]}",
+                        'values': [updated_row]
+                    })
+                else:
+                    # إضافة صف جديد
+                    updates.append({
+                        'range': f"{self.mapping.sheet_name}!A{len(sheet_data) + 1}:{chr(64 + len(headers))}{len(sheet_data) + 1}",
+                        'values': [updated_row]
+                    })
+                    # تحديث row_map للصفوف المضافة
+                    row_map[record_id] = len(sheet_data) + 1
+                    sheet_data.append(updated_row)
+
+            if not updates:
+                logger.info("لا توجد تحديثات مطلوبة")
+                return
+
+            # تنفيذ التحديثات
+            body = {
+                'value_input_option': 'USER_ENTERED',
+                'data': updates
+            }
+            
+            # استخدام خدمة Google Sheets API
+            service = self.importer.service
+            if not service:
+                logger.error("فشل الاتصال بخدمة Google Sheets")
+                return
+                
+            response = service.spreadsheets().values().batchUpdate(
+                spreadsheetId=self.mapping.spreadsheet_id,
+                body=body
+            ).execute()
+            
+            logger.info(f"تم تحديث {len(updates)} صفوف في Google Sheets بنجاح")
+            
+            # تحديث إحصائيات المهمة
+            task.rows_updated = len(updates)
+            task.save(update_fields=['rows_updated', 'updated_at'])
+            
+        except Exception as e:
+            error_msg = f"خطأ في تحديث Google Sheets: {str(e)}"
+            logger.error(error_msg)
+            logger.exception(e)
+            raise Exception(error_msg) from e
 
 
 class SyncScheduler:

@@ -8,6 +8,7 @@ from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from django.urls import reverse
 from django.utils.safestring import mark_safe
+from django import forms
 
 from .google_sync_advanced import (
     GoogleSheetMapping, GoogleSyncTask, GoogleSyncConflict, GoogleSyncSchedule
@@ -68,23 +69,37 @@ class GoogleSheetMappingAdmin(admin.ModelAdmin):
     )
     
     def column_mappings_display(self, obj):
-        """عرض تعيينات الأعمدة بشكل منسق"""
+        """عرض تعيينات الأعمدة بشكل مختصر (اسم العمود ونوعه فقط)"""
         if not obj.column_mappings:
             return _('لا توجد تعيينات')
         
         html = '<table style="width:100%">'
-        html += '<tr><th>العمود</th><th>النوع</th></tr>'
+        html += '<tr><th>اسم العمود</th><th>النوع</th></tr>'
         
-        for column, field_type in obj.column_mappings.items():
+        # محاولة جلب أسماء الأعمدة من الجدول إذا أمكن
+        headers = []
+        try:
+            from .google_sheets_import import GoogleSheetsImporter
+            importer = GoogleSheetsImporter()
+            importer.initialize()
+            headers = importer.get_sheet_data(obj.sheet_name)[obj.header_row - 1]
+        except Exception:
+            pass
+
+        for col_key, field_type in obj.column_mappings.items():
+            # col_key هو رقم العمود كنص غالباً
+            try:
+                col_index = int(col_key)
+                col_name = headers[col_index] if headers and col_index < len(headers) else col_key
+            except Exception:
+                col_name = col_key
             # البحث عن اسم النوع
             field_name = field_type
-            for choice in GoogleSheetMapping.FIELD_TYPES:
+            for choice in obj.FIELD_TYPES:
                 if choice[0] == field_type:
                     field_name = choice[1]
                     break
-            
-            html += f'<tr><td>{column}</td><td>{field_name}</td></tr>'
-        
+            html += f'<tr><td>{col_name}</td><td>{field_name}</td></tr>'
         html += '</table>'
         return mark_safe(html)
     
@@ -100,12 +115,35 @@ class GoogleSheetMappingAdmin(admin.ModelAdmin):
     reverse_sync_fields_display.short_description = _('حقول المزامنة العكسية')
     
     def save_model(self, request, obj, form, change):
-        """حفظ النموذج مع تحديد المستخدم"""
-        if not change:  # إنشاء جديد
+        """
+        حفظ النموذج مع تحديد المستخدم
+        التأكد من أن جميع المفاتيح في column_mappings هي أرقام أعمدة (وليس أسماء)
+        """
+        if obj.column_mappings:
+            # محاولة جلب أسماء الأعمدة من الجدول
+            headers = []
+            try:
+                from .google_sheets_import import GoogleSheetsImporter
+                importer = GoogleSheetsImporter()
+                importer.initialize()
+                headers = importer.get_sheet_data(obj.sheet_name)[obj.header_row - 1]
+            except Exception:
+                pass
+            new_mappings = {}
+            for key, value in obj.column_mappings.items():
+                # إذا كان المفتاح اسم عمود وليس رقم
+                if headers and key in headers:
+                    col_index = headers.index(key)
+                    new_mappings[str(col_index)] = value
+                else:
+                    new_mappings[str(key)] = value
+            obj.column_mappings = new_mappings
+        if not change:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
-
+    save_model.__doc__ += "\n\nملاحظة: يتم تلقائياً تحويل أي اسم عمود إلى رقم العمود الصحيح عند الحفظ لضمان سلامة المزامنة."
+    
 class GoogleSyncConflictInline(admin.TabularInline):
     """عرض التعارضات كـ inline"""
     model = GoogleSyncConflict
