@@ -1,0 +1,379 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'odoo_db_manager/css/style.css' %}">
+<style>
+    .preview-card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    .step-indicator {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    .preview-table-container {
+        max-height: 500px;
+        overflow-x: auto;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 10px;
+    }
+    .preview-table {
+        margin-bottom: 0;
+    }
+    .preview-table thead th {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    .preview-table tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+    .stats-card {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        border-radius: 10px;
+    }
+    .warning-card {
+        background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+        color: white;
+        border-radius: 10px;
+    }
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 25px;
+        padding: 12px 30px;
+        font-weight: 600;
+    }
+    .btn-success {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        border: none;
+        border-radius: 25px;
+        padding: 12px 30px;
+        font-weight: 600;
+    }
+    .import-settings {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+    }
+    .row-number {
+        background: #e9ecef;
+        font-weight: bold;
+        text-align: center;
+        width: 50px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- العنوان والتنقل -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="display-6 mb-0">
+                <i class="fas fa-eye text-primary"></i>
+                {{ title }}
+            </h1>
+            <p class="text-muted">راجع البيانات قبل تنفيذ الاستيراد</p>
+        </div>
+        <div>
+            <a href="{% url 'odoo_db_manager:google_import_form' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> العودة للنموذج
+            </a>
+        </div>
+    </div>
+
+    <!-- مؤشر الخطوات -->
+    <div class="step-indicator">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h4 class="mb-0">
+                    <i class="fas fa-list-ol"></i>
+                    الخطوة 2: معاينة البيانات
+                </h4>
+                <p class="mb-0">راجع البيانات وتأكد من صحتها قبل التنفيذ</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <div class="progress" style="height: 10px;">
+                    <div class="progress-bar bg-light" style="width: 66%"></div>
+                </div>
+                <small class="text-light">66% مكتمل</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- معاينة البيانات -->
+        <div class="col-lg-9">
+            <div class="card preview-card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-table text-primary"></i>
+                            معاينة البيانات من: {{ sheet_name }}
+                        </h5>
+                        <span class="badge bg-info">
+                            عرض أول {{ max_preview_rows }} صفوف من {{ total_rows }}
+                        </span>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    {% if headers and preview_data %}
+                        <div class="preview-table-container">
+                            <table class="table table-bordered preview-table">
+                                <thead>
+                                    <tr>
+                                        <th class="row-number">#</th>
+                                        {% for header in headers %}
+                                            <th>{{ header }}</th>
+                                        {% endfor %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in preview_data %}
+                                        <tr>
+                                            <td class="row-number">{{ forloop.counter|add:1 }}</td>
+                                            {% for cell in row %}
+                                                <td>
+                                                    {% if cell %}
+                                                        {{ cell|truncatechars:50 }}
+                                                    {% else %}
+                                                        <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                </td>
+                                            {% endfor %}
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
+                            <h4 class="mt-3">لا توجد بيانات للمعاينة</h4>
+                            <p class="text-muted">تأكد من وجود بيانات في الصفحة المحددة</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- إعدادات الاستيراد -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cogs text-primary"></i>
+                        إعدادات الاستيراد
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="import-settings">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-table"></i> الصفحة:</h6>
+                                <p class="mb-3">{{ sheet_name }}</p>
+                                
+                                <h6><i class="fas fa-list"></i> نطاق البيانات:</h6>
+                                <p class="mb-3">
+                                    {% if import_settings.import_all %}
+                                        <span class="badge bg-success">جميع البيانات</span>
+                                        ({{ total_rows }} صف)
+                                    {% else %}
+                                        <span class="badge bg-warning">نطاق محدد</span>
+                                        من الصف {{ import_settings.start_row }} إلى {{ import_settings.end_row }}
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-trash"></i> حذف البيانات الموجودة:</h6>
+                                <p class="mb-3">
+                                    {% if import_settings.clear_existing %}
+                                        <span class="badge bg-danger">نعم</span>
+                                        <small class="text-danger d-block">سيتم حذف جميع البيانات الموجودة</small>
+                                    {% else %}
+                                        <span class="badge bg-success">لا</span>
+                                        <small class="text-muted d-block">سيتم إضافة البيانات الجديدة فقط</small>
+                                    {% endif %}
+                                </p>
+                                
+                                <h6><i class="fas fa-clock"></i> وقت التنفيذ المتوقع:</h6>
+                                <p class="mb-3">
+                                    {% if total_rows <= 100 %}
+                                        <span class="badge bg-success">أقل من دقيقة</span>
+                                    {% elif total_rows <= 1000 %}
+                                        <span class="badge bg-warning">1-3 دقائق</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">أكثر من 3 دقائق</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- أزرار التحكم -->
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{% url 'odoo_db_manager:google_import_form' %}" class="btn btn-outline-secondary btn-lg">
+                    <i class="fas fa-arrow-left"></i> تعديل الإعدادات
+                </a>
+                
+                <div>
+                    {% if import_settings.clear_existing %}
+                        <button type="button" class="btn btn-outline-danger me-2" 
+                                data-bs-toggle="modal" data-bs-target="#confirmModal">
+                            <i class="fas fa-exclamation-triangle"></i> تأكيد وتنفيذ
+                        </button>
+                    {% else %}
+                        <form method="post" action="{% url 'odoo_db_manager:google_import_execute' %}" style="display: inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-play"></i> تنفيذ الاستيراد
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- الشريط الجانبي -->
+        <div class="col-lg-3">
+            <!-- إحصائيات المعاينة -->
+            <div class="card stats-card mb-4">
+                <div class="card-body text-center">
+                    <h5 class="card-title">
+                        <i class="fas fa-chart-bar"></i>
+                        إحصائيات المعاينة
+                    </h5>
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <h2>{{ total_rows }}</h2>
+                            <small>إجمالي الصفوف</small>
+                        </div>
+                        <div class="col-6">
+                            <h4>{{ headers|length }}</h4>
+                            <small>الأعمدة</small>
+                        </div>
+                        <div class="col-6">
+                            <h4>{{ preview_data|length }}</h4>
+                            <small>معاينة</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- تحذيرات -->
+            {% if import_settings.clear_existing %}
+            <div class="card warning-card mb-4">
+                <div class="card-body text-center">
+                    <h5 class="card-title">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        تحذير مهم
+                    </h5>
+                    <p class="mb-0">
+                        سيتم حذف جميع البيانات الموجودة من نفس النوع قبل الاستيراد.
+                        هذا الإجراء لا يمكن التراجع عنه.
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- نصائح -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-lightbulb"></i>
+                        نصائح مفيدة
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled">
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            تأكد من صحة البيانات قبل التنفيذ
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            البيانات المكررة سيتم تحديثها
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            يمكنك مراجعة السجل بعد التنفيذ
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- نافذة التأكيد -->
+{% if import_settings.clear_existing %}
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    تأكيد حذف البيانات
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <strong>تحذير:</strong> سيتم حذف جميع البيانات الموجودة من نفس النوع نهائياً.
+                </div>
+                <p>هل أنت متأكد من أنك تريد المتابعة؟</p>
+                <ul>
+                    <li>سيتم حذف جميع البيانات الموجودة</li>
+                    <li>سيتم استيراد {{ total_rows }} صف جديد</li>
+                    <li>هذا الإجراء لا يمكن التراجع عنه</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <form method="post" action="{% url 'odoo_db_manager:google_import_execute' %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> حذف وتنفيذ
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // تحسين تجربة عرض الجدول
+    const tableContainer = document.querySelector('.preview-table-container');
+    if (tableContainer) {
+        // إضافة تأثير التمرير السلس
+        tableContainer.style.scrollBehavior = 'smooth';
+    }
+    
+    // إضافة معلومات أدوات للخلايا الطويلة
+    const cells = document.querySelectorAll('.preview-table td');
+    cells.forEach(cell => {
+        if (cell.textContent.length > 50) {
+            cell.setAttribute('title', cell.textContent);
+            cell.style.cursor = 'help';
+        }
+    });
+});
+</script>
+{% endblock %}

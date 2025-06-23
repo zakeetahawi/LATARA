@@ -65,8 +65,20 @@ class GoogleSyncConfig(models.Model):
             try:
                 # قراءة ملف بيانات الاعتماد
                 with open(file_path, 'r', encoding='utf-8') as f:
-                    credentials = json.load(f)
-                
+                    credentials_raw = f.read()
+                try:
+                    credentials = json.loads(credentials_raw)
+                except Exception:
+                    credentials = credentials_raw  # fallback to raw string
+
+                # إذا بقي نص، حاول تحويله إلى dict
+                if isinstance(credentials, str):
+                    try:
+                        credentials = json.loads(credentials)
+                    except Exception:
+                        logger.error("ملف بيانات الاعتماد ليس بالتنسيق المتوقع (نص غير قابل للتحويل)")
+                        return None
+
                 # التحقق من نوع بيانات الاعتماد
                 if not isinstance(credentials, dict):
                     logger.error("ملف بيانات الاعتماد ليس بالتنسيق المتوقع")
@@ -135,14 +147,14 @@ class GoogleSyncLog(models.Model):
         return f"{self.get_status_display()} - {self.created_at}"
 
 
-def sync_with_google_sheets(config_id=None, manual=False):
+def sync_with_google_sheets(config_id=None, manual=False, full_backup=False, selected_tables=None):
     """
     مزامنة بيانات التطبيق مع Google Sheets
-    
     Args:
         config_id: معرف إعداد المزامنة (اختياري)
         manual: ما إذا كانت المزامنة يدوية أم تلقائية
-    
+        full_backup: إذا True يتم مزامنة كل الجداول دفعة واحدة (نسخة احتياطية شاملة)
+        selected_tables: قائمة بأسماء الجداول المطلوب مزامنتها فقط (تلغي full_backup إذا تم تحديدها)
     Returns:
         dict: نتيجة المزامنة
     """
@@ -203,42 +215,53 @@ def sync_with_google_sheets(config_id=None, manual=False):
         
         # مزامنة البيانات
         sync_results = {}
-        
-        # مزامنة قواعد البيانات
-        if config.sync_databases:
+
+        # إذا تم تحديد جداول محددة، مزامنة فقط الجداول المختارة
+        if selected_tables and isinstance(selected_tables, list) and len(selected_tables) > 0:
+            if 'databases' in selected_tables:
+                db_result = sync_databases(sheets_service, config.spreadsheet_id)
+                sync_results['databases'] = db_result
+            if 'users' in selected_tables:
+                users_result = sync_users(sheets_service, config.spreadsheet_id)
+                sync_results['users'] = users_result
+            if 'customers' in selected_tables:
+                customers_result = sync_customers(sheets_service, config.spreadsheet_id)
+                sync_results['customers'] = customers_result
+            if 'orders' in selected_tables:
+                orders_result = sync_orders(sheets_service, config.spreadsheet_id)
+                sync_results['orders'] = orders_result
+            if 'products' in selected_tables:
+                products_result = sync_products(sheets_service, config.spreadsheet_id)
+                sync_results['products'] = products_result
+            if 'inspections' in selected_tables:
+                inspections_result = sync_inspections(sheets_service, config.spreadsheet_id)
+                sync_results['inspections'] = inspections_result
+            if 'settings' in selected_tables:
+                settings_result = sync_settings(sheets_service, config.spreadsheet_id)
+                sync_results['settings'] = settings_result
+            if 'branches' in selected_tables:
+                branches_result = sync_branches(sheets_service, config.spreadsheet_id)
+                sync_results['branches'] = branches_result
+
+        # إذا لم يتم تحديد جداول، أو تم اختيار full_backup=True، مزامنة كل الجداول دفعة واحدة
+        else:
             db_result = sync_databases(sheets_service, config.spreadsheet_id)
             sync_results['databases'] = db_result
-        
-        # مزامنة المستخدمين
-        if config.sync_users:
             users_result = sync_users(sheets_service, config.spreadsheet_id)
             sync_results['users'] = users_result
-        
-        # مزامنة العملاء
-        if config.sync_customers:
             customers_result = sync_customers(sheets_service, config.spreadsheet_id)
             sync_results['customers'] = customers_result
-        
-        # مزامنة الطلبات
-        if config.sync_orders:
             orders_result = sync_orders(sheets_service, config.spreadsheet_id)
             sync_results['orders'] = orders_result
-        
-        # مزامنة المنتجات
-        if config.sync_products:
             products_result = sync_products(sheets_service, config.spreadsheet_id)
             sync_results['products'] = products_result
-        
-        # مزامنة المعاينات
-        if config.sync_inspections:
             inspections_result = sync_inspections(sheets_service, config.spreadsheet_id)
             sync_results['inspections'] = inspections_result
-        
-        # مزامنة الإعدادات
-        if config.sync_settings:
             settings_result = sync_settings(sheets_service, config.spreadsheet_id)
             sync_results['settings'] = settings_result
-        
+            branches_result = sync_branches(sheets_service, config.spreadsheet_id)
+            sync_results['branches'] = branches_result
+
         # تحديث وقت آخر مزامنة
         config.update_last_sync()
         
@@ -265,6 +288,51 @@ def sync_with_google_sheets(config_id=None, manual=False):
                 message=message
             )
         
+        return {'status': 'error', 'message': message}
+
+# ========== مزامنة جدول الفروع ==========
+def sync_branches(service, spreadsheet_id):
+    """
+    مزامنة جدول الفروع مع Google Sheets مع جميع الحقول (حتى غير المعروضة في لوحة الإدارة)
+    """
+    try:
+        Branch = apps.get_model('accounts', 'Branch')
+        branches = Branch.objects.all()
+        fields = [f.name for f in Branch._meta.get_fields() if not f.many_to_many and not f.one_to_many]
+        header = []
+        for f in fields:
+            field_obj = Branch._meta.get_field(f)
+            if field_obj.is_relation and hasattr(field_obj, 'related_model') and not field_obj.many_to_one and not field_obj.one_to_one:
+                continue
+            if field_obj.is_relation and hasattr(field_obj, 'related_model'):
+                header.append(f"{f}_display")
+            else:
+                header.append(f)
+        data = [header]
+        for branch in branches:
+            row = []
+            for f in fields:
+                field_obj = Branch._meta.get_field(f)
+                value = getattr(branch, f, '')
+                if field_obj.is_relation and hasattr(field_obj, 'related_model'):
+                    if value:
+                        if hasattr(value, 'name'):
+                            row.append(str(value.name))
+                        elif hasattr(value, 'get_full_name'):
+                            row.append(str(value.get_full_name()))
+                        else:
+                            row.append(str(value))
+                    else:
+                        row.append('')
+                else:
+                    row.append(str(value) if value is not None else '')
+            data.append(row)
+        sheet_name = 'الفروع'
+        result = update_sheet(service, spreadsheet_id, sheet_name, data)
+        return {'status': 'success', 'message': f"تمت مزامنة {len(branches)} فرع"}
+    except Exception as e:
+        message = f"حدث خطأ أثناء مزامنة الفروع: {str(e)}"
+        logger.error(message)
         return {'status': 'error', 'message': message}
 
 
@@ -345,41 +413,43 @@ def create_sheets_service(credentials):
 
 def sync_databases(service, spreadsheet_id):
     """
-    مزامنة قواعد البيانات مع Google Sheets
-    
-    Args:
-        service: خدمة Google Sheets
-        spreadsheet_id: معرف جدول البيانات
-    
-    Returns:
-        dict: نتيجة المزامنة
+    مزامنة قواعد البيانات مع Google Sheets مع جميع الحقول (حتى غير المعروضة في لوحة الإدارة)
     """
     try:
-        from odoo_db_manager.models import Database
-        
-        # الحصول على قواعد البيانات
+        Database = apps.get_model('odoo_db_manager', 'Database')
         databases = Database.objects.all()
-        
-        # تحويل قواعد البيانات إلى قائمة
-        data = [['معرف', 'الاسم', 'النوع', 'نشطة', 'تاريخ الإنشاء', 'تاريخ التحديث', 'معلومات الاتصال']]
-        
+        fields = [f.name for f in Database._meta.get_fields() if not f.many_to_many and not f.one_to_many]
+        header = []
+        for f in fields:
+            field_obj = Database._meta.get_field(f)
+            if field_obj.is_relation and hasattr(field_obj, 'related_model') and not field_obj.many_to_one and not field_obj.one_to_one:
+                continue
+            if field_obj.is_relation and hasattr(field_obj, 'related_model'):
+                header.append(f"{f}_display")
+            else:
+                header.append(f)
+        data = [header]
         for db in databases:
-            data.append([
-                str(db.id),
-                db.name,
-                db.get_db_type_display(),
-                'نعم' if db.is_active else 'لا',
-                db.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                db.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
-                json.dumps(db.connection_info)
-            ])
-        
-        # تحديث ورقة العمل
+            row = []
+            for f in fields:
+                field_obj = Database._meta.get_field(f)
+                value = getattr(db, f, '')
+                if field_obj.is_relation and hasattr(field_obj, 'related_model'):
+                    if value:
+                        if hasattr(value, 'name'):
+                            row.append(str(value.name))
+                        elif hasattr(value, 'get_full_name'):
+                            row.append(str(value.get_full_name()))
+                        else:
+                            row.append(str(value))
+                    else:
+                        row.append('')
+                else:
+                    row.append(str(value) if value is not None else '')
+            data.append(row)
         sheet_name = 'قواعد البيانات'
         result = update_sheet(service, spreadsheet_id, sheet_name, data)
-        
         return {'status': 'success', 'message': f"تمت مزامنة {len(databases)} قاعدة بيانات"}
-    
     except Exception as e:
         message = f"حدث خطأ أثناء مزامنة قواعد البيانات: {str(e)}"
         logger.error(message)
@@ -388,44 +458,43 @@ def sync_databases(service, spreadsheet_id):
 
 def sync_users(service, spreadsheet_id):
     """
-    مزامنة المستخدمين مع Google Sheets
-    
-    Args:
-        service: خدمة Google Sheets
-        spreadsheet_id: معرف جدول البيانات
-    
-    Returns:
-        dict: نتيجة المزامنة
+    مزامنة المستخدمين مع Google Sheets مع جميع الحقول (حتى غير المعروضة في لوحة الإدارة)
     """
     try:
-        # الحصول على نموذج المستخدم
         User = apps.get_model('accounts', 'User')
-        
-        # الحصول على المستخدمين
         users = User.objects.all()
-        
-        # تحويل المستخدمين إلى قائمة
-        data = [['معرف', 'اسم المستخدم', 'البريد الإلكتروني', 'الاسم الأول', 'الاسم الأخير', 'نشط', 'مشرف', 'تاريخ الانضمام', 'كلمة المرور المشفرة']]
-        
+        fields = [f.name for f in User._meta.get_fields() if not f.many_to_many and not f.one_to_many]
+        header = []
+        for f in fields:
+            field_obj = User._meta.get_field(f)
+            if field_obj.is_relation and hasattr(field_obj, 'related_model') and not field_obj.many_to_one and not field_obj.one_to_one:
+                continue
+            if field_obj.is_relation and hasattr(field_obj, 'related_model'):
+                header.append(f"{f}_display")
+            else:
+                header.append(f)
+        data = [header]
         for user in users:
-            data.append([
-                str(user.id),
-                user.username,
-                user.email,
-                user.first_name,
-                user.last_name,
-                'نعم' if user.is_active else 'لا',
-                'نعم' if user.is_staff else 'لا',
-                user.date_joined.strftime('%Y-%m-%d %H:%M:%S'),
-                user.password  # كلمة المرور المشفرة
-            ])
-        
-        # تحديث ورقة العمل
+            row = []
+            for f in fields:
+                field_obj = User._meta.get_field(f)
+                value = getattr(user, f, '')
+                if field_obj.is_relation and hasattr(field_obj, 'related_model'):
+                    if value:
+                        if hasattr(value, 'name'):
+                            row.append(str(value.name))
+                        elif hasattr(value, 'get_full_name'):
+                            row.append(str(value.get_full_name()))
+                        else:
+                            row.append(str(value))
+                    else:
+                        row.append('')
+                else:
+                    row.append(str(value) if value is not None else '')
+            data.append(row)
         sheet_name = 'المستخدمين'
         result = update_sheet(service, spreadsheet_id, sheet_name, data)
-        
         return {'status': 'success', 'message': f"تمت مزامنة {len(users)} مستخدم"}
-    
     except Exception as e:
         message = f"حدث خطأ أثناء مزامنة المستخدمين: {str(e)}"
         logger.error(message)
@@ -434,26 +503,43 @@ def sync_users(service, spreadsheet_id):
 
 def sync_customers(service, spreadsheet_id):
     """
-    مزامنة العملاء مع Google Sheets مع جميع التفاصيل الدقيقة
+    مزامنة العملاء مع Google Sheets مع جميع الحقول (حتى غير المعروضة في لوحة الإدارة)
     """
     try:
         Customer = apps.get_model('customers', 'Customer')
         customers = Customer.objects.all()
-        data = [[
-            'معرف', 'الاسم', 'العنوان', 'الكود', 'الاهتمامات', 'رقم الهاتف', 'رقم الهاتف الثاني', 'الملاحظات', 'تاريخ الإنشاء'
-        ]]
+        # استخراج جميع الحقول من الموديل ديناميكياً
+        fields = [f.name for f in Customer._meta.get_fields() if not f.many_to_many and not f.one_to_many]
+        # إضافة الحقول المرتبطة (عرض الاسم بدلاً من الـID)
+        header = []
+        for f in fields:
+            field_obj = Customer._meta.get_field(f)
+            if field_obj.is_relation and hasattr(field_obj, 'related_model') and not field_obj.many_to_one and not field_obj.one_to_one:
+                continue  # تجاهل العلاقات many-to-many
+            if field_obj.is_relation and hasattr(field_obj, 'related_model'):
+                header.append(f"{f}_display")
+            else:
+                header.append(f)
+        data = [header]
         for customer in customers:
-            data.append([
-                str(customer.id),
-                customer.name,
-                customer.address,
-                getattr(customer, 'code', ''),
-                getattr(customer, 'interests', ''),
-                customer.phone,
-                getattr(customer, 'secondary_phone', ''),
-                getattr(customer, 'notes', ''),
-                customer.created_at.strftime('%Y-%m-%d %H:%M:%S')
-            ])
+            row = []
+            for f in fields:
+                field_obj = Customer._meta.get_field(f)
+                value = getattr(customer, f, '')
+                if field_obj.is_relation and hasattr(field_obj, 'related_model'):
+                    # إذا كان الحقل علاقة، حاول جلب اسم العنصر المرتبط
+                    if value:
+                        if hasattr(value, 'name'):
+                            row.append(str(value.name))
+                        elif hasattr(value, 'get_full_name'):
+                            row.append(str(value.get_full_name()))
+                        else:
+                            row.append(str(value))
+                    else:
+                        row.append('')
+                else:
+                    row.append(str(value) if value is not None else '')
+            data.append(row)
         sheet_name = 'العملاء'
         result = update_sheet(service, spreadsheet_id, sheet_name, data)
         return {'status': 'success', 'message': f"تمت مزامنة {len(customers)} عميل"}
@@ -510,34 +596,43 @@ def sync_inspections(service, spreadsheet_id):
 
 def sync_orders(service, spreadsheet_id):
     """
-    مزامنة الطلبات مع Google Sheets مع التفاصيل المطلوبة
+    مزامنة الطلبات مع Google Sheets مع جميع الحقول (حتى غير المعروضة في لوحة الإدارة)
     """
     try:
-        logger.info("بدء مزامنة الطلبات")
         Order = apps.get_model('orders', 'Order')
         orders = Order.objects.all()
-        data = [[
-            'رقم الطلب', 'نوع الطلب', 'تفاصيل نوع الخدمة', 'العميل', 'تاريخ الطلب', 'تاريخ التسليم', 'الحالة', 'الملاحظات'
-        ]]
-        count = 0
+        fields = [f.name for f in Order._meta.get_fields() if not f.many_to_many and not f.one_to_many]
+        header = []
+        for f in fields:
+            field_obj = Order._meta.get_field(f)
+            if field_obj.is_relation and hasattr(field_obj, 'related_model') and not field_obj.many_to_one and not field_obj.one_to_one:
+                continue
+            if field_obj.is_relation and hasattr(field_obj, 'related_model'):
+                header.append(f"{f}_display")
+            else:
+                header.append(f)
+        data = [header]
         for order in orders:
-            order_type = getattr(order, 'order_type', '') or 'طلب'
-            service_detail = ''
-            if hasattr(order, 'service') and order.service:
-                service_detail = str(order.service.name) if hasattr(order.service, 'name') else ''
-            customer_name = order.customer.name if order.customer else ''
-            order_date = order.order_date.strftime('%Y-%m-%d') if getattr(order, 'order_date', None) else ''
-            delivery_date = order.delivery_date.strftime('%Y-%m-%d') if getattr(order, 'delivery_date', None) else ''
-            status = order.status if getattr(order, 'status', None) else ''
-            notes = order.notes if getattr(order, 'notes', None) else ''
-            data.append([
-                str(order.id), order_type, service_detail, customer_name, order_date, delivery_date, status, notes
-            ])
-            count += 1
-        logger.info(f"بيانات الطلبات المرسلة إلى update_sheet: {data}")
-        result = update_sheet(service, spreadsheet_id, 'الطلبات', data)
-        logger.info("انتهت مزامنة الطلبات")
-        return {'status': 'success', 'message': f"تمت مزامنة {result} طلب"}
+            row = []
+            for f in fields:
+                field_obj = Order._meta.get_field(f)
+                value = getattr(order, f, '')
+                if field_obj.is_relation and hasattr(field_obj, 'related_model'):
+                    if value:
+                        if hasattr(value, 'name'):
+                            row.append(str(value.name))
+                        elif hasattr(value, 'get_full_name'):
+                            row.append(str(value.get_full_name()))
+                        else:
+                            row.append(str(value))
+                    else:
+                        row.append('')
+                else:
+                    row.append(str(value) if value is not None else '')
+            data.append(row)
+        sheet_name = 'الطلبات'
+        result = update_sheet(service, spreadsheet_id, sheet_name, data)
+        return {'status': 'success', 'message': f"تمت مزامنة {len(orders)} طلب"}
     except Exception as e:
         logger.error(f"حدث خطأ أثناء مزامنة الطلبات: {str(e)}")
         return {'status': 'error', 'message': str(e)}
@@ -545,30 +640,59 @@ def sync_orders(service, spreadsheet_id):
 
 def sync_products(service, spreadsheet_id):
     """
-    مزامنة المنتجات مع Google Sheets بشكل مصحح وموسع
+    مزامنة المنتجات مع Google Sheets مع جميع الحقول (حتى غير المعروضة في لوحة الإدارة)
+    ويضاف عمود "الكمية المتوفرة في المخزن" (available_quantity أو stock_quantity)
     """
     try:
-        logger.info("بدء مزامنة المنتجات")
         Product = apps.get_model('inventory', 'Product')
         products = Product.objects.all()
-        data = [[
-            'معرف', 'الاسم', 'الوصف', 'السعر', 'الكمية', 'تاريخ الإنشاء', 'تفاصيل إضافية'
-        ]]
-        count = 0
+        fields = [f.name for f in Product._meta.get_fields() if not f.many_to_many and not f.one_to_many]
+        # إضافة عمود الكمية المتوفرة إذا لم يكن موجوداً
+        extra_col = None
+        for possible in ['available_quantity', 'stock_quantity', 'quantity_available', 'qty_available']:
+            if hasattr(Product, possible):
+                extra_col = possible
+                break
+            # تحقق من أول عنصر
+            if products and hasattr(products[0], possible):
+                extra_col = possible
+                break
+        header = []
+        for f in fields:
+            field_obj = Product._meta.get_field(f)
+            if field_obj.is_relation and hasattr(field_obj, 'related_model') and not field_obj.many_to_one and not field_obj.one_to_one:
+                continue
+            if field_obj.is_relation and hasattr(field_obj, 'related_model'):
+                header.append(f"{f}_display")
+            else:
+                header.append(f)
+        if extra_col and extra_col not in header:
+            header.append('الكمية المتوفرة')
+        data = [header]
         for product in products:
-            description = product.description if getattr(product, 'description', None) else ''
-            price = str(product.price) if getattr(product, 'price', None) else ''
-            quantity = product.quantity if getattr(product, 'quantity', None) is not None else ''
-            created_at = product.created_at.strftime('%Y-%m-%d %H:%M:%S') if getattr(product, 'created_at', None) else ''
-            details = f"الوصف: {description}, السعر: {price}, الكمية: {quantity}"
-            data.append([
-                str(product.id), product.name, description, price, quantity, created_at, details
-            ])
-            count += 1
-        logger.info(f"بيانات المنتجات المرسلة إلى update_sheet: {data}")
-        result = update_sheet(service, spreadsheet_id, 'المنتجات', data)
-        logger.info("انتهت مزامنة المنتجات")
-        return {'status': 'success', 'message': f"تمت مزامنة {result} منتج"}
+            row = []
+            for f in fields:
+                field_obj = Product._meta.get_field(f)
+                value = getattr(product, f, '')
+                if field_obj.is_relation and hasattr(field_obj, 'related_model'):
+                    if value:
+                        if hasattr(value, 'name'):
+                            row.append(str(value.name))
+                        elif hasattr(value, 'get_full_name'):
+                            row.append(str(value.get_full_name()))
+                        else:
+                            row.append(str(value))
+                    else:
+                        row.append('')
+                else:
+                    row.append(str(value) if value is not None else '')
+            # أضف الكمية المتوفرة
+            if extra_col:
+                row.append(str(getattr(product, extra_col, '')))
+            data.append(row)
+        sheet_name = 'المنتجات'
+        result = update_sheet(service, spreadsheet_id, sheet_name, data)
+        return {'status': 'success', 'message': f"تمت مزامنة {len(products)} منتج"}
     except Exception as e:
         logger.error(f"حدث خطأ أثناء مزامنة المنتجات: {str(e)}")
         return {'status': 'error', 'message': str(e)}

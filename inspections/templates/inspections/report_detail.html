@@ -164,7 +164,13 @@
         <div class="card-body">
             <div class="row">
                 <div class="col-md-6">
-                    <p><strong>{% trans 'تم الإنشاء بواسطة' %}:</strong> {{ report.created_by.get_full_name }}</p>
+                    <p><strong>{% trans 'تم الإنشاء بواسطة' %}:</strong>
+                        {% if report.created_by %}
+                            {{ report.created_by.get_full_name|default:report.created_by.username }}
+                        {% else %}
+                            غير محدد
+                        {% endif %}
+                    </p>
                     <p><strong>{% trans 'تاريخ الإنشاء' %}:</strong> {{ report.created_at|date:"Y/m/d H:i" }}</p>
                 </div>
                 <div class="col-md-6">

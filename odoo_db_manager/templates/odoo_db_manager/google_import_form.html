@@ -1,0 +1,354 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'odoo_db_manager/css/style.css' %}">
+<style>
+    .import-form-card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    .step-indicator {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    .form-section {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .sheet-preview {
+        background: white;
+        border: 2px dashed #dee2e6;
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        margin: 20px 0;
+    }
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 25px;
+        padding: 12px 30px;
+        font-weight: 600;
+    }    .range-fields {
+        display: none;
+        animation: fadeIn 0.3s;
+    }
+    .range-fields.show {
+        display: block;
+    }
+    
+    /* تحسين مظهر الحقول */
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    
+    .form-group label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.5rem;
+    }
+    
+    .form-control, .form-select {
+        border-radius: 8px;
+        border: 2px solid #e9ecef;
+        padding: 12px 15px;
+        transition: all 0.3s ease;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+    
+    .form-check-input {
+        margin-top: 0.3rem;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+        to { opacity: 1; }
+    }
+    .error-message {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    .config-error {
+        text-align: center;
+        padding: 40px;
+    }
+    .config-error i {
+        font-size: 4rem;
+        color: #dc3545;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- العنوان والتنقل -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="display-6 mb-0">
+                <i class="fas fa-file-import text-primary"></i>
+                {{ title }}
+            </h1>
+            <p class="text-muted">اختر الصفحة والإعدادات للاستيراد</p>
+        </div>
+        <div>
+            <a href="{% url 'odoo_db_manager:google_import_dashboard' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> العودة
+            </a>
+        </div>
+    </div>
+
+    {% if not has_config %}
+        <!-- رسالة خطأ الإعداد -->
+        <div class="card import-form-card">
+            <div class="card-body config-error">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h3>لم يتم إعداد Google Sheets</h3>
+                <p class="lead">{{ error_message }}</p>
+                <div class="mt-4">
+                    <a href="{% url 'odoo_db_manager:google_sync_config' %}" 
+                       class="btn btn-primary btn-lg">
+                        <i class="fas fa-cog"></i> إعداد Google Sheets
+                    </a>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <!-- مؤشر الخطوات -->
+        <div class="step-indicator">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h4 class="mb-0">
+                        <i class="fas fa-list-ol"></i>
+                        الخطوة 1: اختيار الصفحة والإعدادات
+                    </h4>
+                    <p class="mb-0">اختر الصفحة التي تريد استيراد البيانات منها وحدد الإعدادات</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="progress" style="height: 10px;">
+                        <div class="progress-bar bg-light" style="width: 33%"></div>
+                    </div>
+                    <small class="text-light">33% مكتمل</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- نموذج الاستيراد -->
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card import-form-card">
+                    <div class="card-body">
+                        <form method="post" id="importForm">
+                            {% csrf_token %}
+                            
+                            <!-- اختيار الصفحة -->
+                            <div class="form-section">
+                                <h5 class="mb-3">
+                                    <i class="fas fa-table text-primary"></i>
+                                    اختيار الصفحة
+                                </h5>
+                                
+                                {% if form.sheet_name.errors %}
+                                    <div class="error-message">
+                                        {{ form.sheet_name.errors }}
+                                    </div>
+                                {% endif %}
+                                  <div class="row">
+                                    <div class="col-md-8">
+                                        <div class="form-group">
+                                            {{ form.sheet_name.label_tag }}
+                                            {{ form.sheet_name }}
+                                            {% if form.sheet_name.help_text %}
+                                                <small class="form-text text-muted">{{ form.sheet_name.help_text }}</small>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">&nbsp;</label>
+                                        <button type="button" class="btn btn-outline-primary w-100" 
+                                                onclick="refreshSheets()">
+                                            <i class="fas fa-sync-alt"></i> تحديث القائمة
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- معاينة الصفحة المحددة -->
+                                <div id="sheetPreview" class="sheet-preview" style="display: none;">
+                                    <i class="fas fa-eye text-muted"></i>
+                                    <p class="text-muted mb-0">اختر صفحة لعرض معلوماتها</p>
+                                </div>
+                            </div>
+
+                            <!-- إعدادات الاستيراد -->
+                            <div class="form-section">
+                                <h5 class="mb-3">
+                                    <i class="fas fa-cogs text-primary"></i>
+                                    إعدادات الاستيراد
+                                </h5>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check form-switch mb-3">
+                                            {{ form.import_all }}
+                                            <label class="form-check-label" for="{{ form.import_all.id_for_label }}">
+                                                <strong>{{ form.import_all.label }}</strong>
+                                                <br>
+                                                <small class="text-muted">{{ form.import_all.help_text }}</small>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check form-switch mb-3">
+                                            {{ form.clear_existing }}
+                                            <label class="form-check-label" for="{{ form.clear_existing.id_for_label }}">
+                                                <strong>{{ form.clear_existing.label }}</strong>
+                                                <br>
+                                                <small class="text-muted text-danger">{{ form.clear_existing.help_text }}</small>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- نطاق الصفوف -->
+                                <div id="rangeFields" class="range-fields">
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle"></i>
+                                        حدد نطاق الصفوف للاستيراد (الصف الأول مخصص للعناوين)
+                                    </div>                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                {{ form.start_row.label_tag }}
+                                                {{ form.start_row }}
+                                                {% if form.start_row.help_text %}
+                                                    <small class="form-text text-muted">{{ form.start_row.help_text }}</small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                {{ form.end_row.label_tag }}
+                                                {{ form.end_row }}
+                                                {% if form.end_row.help_text %}
+                                                    <small class="form-text text-muted">{{ form.end_row.help_text }}</small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- أزرار التحكم -->
+                            <div class="d-flex justify-content-between">
+                                <button type="button" class="btn btn-outline-info" onclick="previewData()">
+                                    <i class="fas fa-eye"></i> معاينة البيانات
+                                </button>
+                                
+                                <div>
+                                    <button type="button" class="btn btn-outline-secondary me-2" 
+                                            onclick="resetForm()">
+                                        <i class="fas fa-undo"></i> إعادة تعيين
+                                    </button>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-arrow-right"></i> التالي
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- الشريط الجانبي -->
+            <div class="col-lg-4">
+                <!-- معلومات الإعداد -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-info-circle"></i>
+                            معلومات الإعداد
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <p><strong>الصفحات المتاحة:</strong> {{ available_sheets|length }}</p>
+                        <p><strong>حالة الاتصال:</strong> 
+                            <span class="badge bg-success">متصل</span>
+                        </p>
+                        <hr>
+                        <small class="text-muted">
+                            <i class="fas fa-lightbulb"></i>
+                            <strong>نصيحة:</strong> تأكد من أن الصف الأول يحتوي على عناوين الأعمدة
+                        </small>
+                    </div>
+                </div>
+
+                <!-- تنسيق البيانات المطلوب -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-table"></i>
+                            تنسيق البيانات المطلوب
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <h6>للعملاء:</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="fas fa-check text-success"></i> الاسم (مطلوب)</li>
+                            <li><i class="fas fa-check text-success"></i> رقم الهاتف (مطلوب)</li>
+                            <li><i class="fas fa-minus text-muted"></i> البريد الإلكتروني (اختياري)</li>
+                            <li><i class="fas fa-minus text-muted"></i> العنوان (اختياري)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<!-- نافذة المعاينة -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-eye"></i>
+                    معاينة البيانات
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="previewContent">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">جارٍ التحميل...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'odoo_db_manager/js/google_import.js' %}"></script>
+{% endblock %}

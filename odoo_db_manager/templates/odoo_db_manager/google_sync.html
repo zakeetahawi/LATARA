@@ -8,131 +8,232 @@
 <link rel="stylesheet" href="{% static 'odoo_db_manager/css/style.css' %}">
 <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css" />
 <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/themes/light.css" />
+<!-- SweetAlert2 CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" />
 <style>
     .google-sync-container {
         max-width: 1200px;
         margin: 0 auto;
     }
-    
     .sync-card {
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        transition: all 0.3s ease;
+        border-radius: 18px;
+        box-shadow: 0 6px 24px rgba(66,133,244,0.08), 0 1.5px 6px rgba(52,168,83,0.07);
+        border: 1px solid #e3e7ed;
+        background: #fff;
+        transition: box-shadow 0.3s, transform 0.2s;
+        margin-bottom: 32px;
     }
-    
     .sync-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 12px 36px rgba(66,133,244,0.13), 0 3px 12px rgba(52,168,83,0.10);
+        transform: translateY(-3px) scale(1.01);
     }
-    
     .sync-header {
-        background: linear-gradient(135deg, #4285F4, #34A853);
-        color: white;
-        border-radius: 10px 10px 0 0;
-        padding: 15px;
+        background: linear-gradient(90deg, #4285F4 0%, #34A853 100%);
+        color: #fff;
+        border-radius: 18px 18px 0 0;
+        padding: 18px 24px;
+        font-size: 1.15rem;
+        font-weight: bold;
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
     }
-    
     .sync-body {
-        padding: 20px;
+        padding: 28px 24px 18px 24px;
     }
-    
     .sync-footer {
-        background-color: #f8f9fa;
-        border-radius: 0 0 10px 10px;
-        padding: 15px;
+        background: #f5f7fa;
+        border-radius: 0 0 18px 18px;
+        padding: 18px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-top: 1px solid #e3e7ed;
     }
-    
     .google-logo {
-        width: 24px;
-        height: 24px;
+        width: 28px;
+        height: 28px;
         margin-right: 8px;
+        vertical-align: middle;
     }
-    
     .sync-status {
-        font-size: 14px;
-        padding: 5px 10px;
+        font-size: 15px;
+        padding: 6px 16px;
         border-radius: 20px;
+        font-weight: bold;
+        letter-spacing: 0.5px;
     }
-    
     .sync-status-success {
-        background-color: #d4edda;
-        color: #155724;
+        background-color: #e6f4ea;
+        color: #137333;
     }
-    
     .sync-status-error {
-        background-color: #f8d7da;
-        color: #721c24;
+        background-color: #fce8e6;
+        color: #a50e0e;
     }
-    
     .sync-status-warning {
-        background-color: #fff3cd;
-        color: #856404;
+        background-color: #fef7e0;
+        color: #a05e03;
     }
-    
-    .sync-log-table {
-        font-size: 14px;
-    }
-    
-    .sync-log-table th {
-        background-color: #f8f9fa;
-    }
-    
     .sync-options label {
         font-weight: normal;
         cursor: pointer;
     }
-    
     .sync-options .form-check {
-        margin-bottom: 10px;
+        margin-bottom: 12px;
     }
-    
-    .sync-status {
-        margin-top: 10px;
-        font-weight: bold;
+    .sync-options .form-check-input:checked {
+        background-color: #4285F4;
+        border-color: #4285F4;
     }
-    .sync-flash {
-        animation: flash 1s infinite;
+    .sync-options .form-check-input:focus {
+        box-shadow: 0 0 0 0.15rem rgba(66,133,244,0.25);
     }
-    @keyframes flash {
-        0%, 100% {opacity: 1;}
-        50% {opacity: 0.5;}
-    }
-
-    /* تنسيقات إضافية لعرض التفاصيل */
-    .tippy-box {
-        max-width: 600px !important;
-        text-align: right;
-        direction: rtl;
-    }
-
     .sync-details {
         padding: 10px;
     }
-
     .sync-detail-item {
         margin-bottom: 10px;
         padding: 8px;
         border-radius: 6px;
         background-color: #f8f9fa;
     }
-
     .sync-detail-item .title {
         font-weight: bold;
         margin-bottom: 5px;
     }
-
     .sync-detail-item .badge {
         margin-left: 5px;
     }
-
     .sync-detail-item .message {
         margin-top: 5px;
     }
-
     .sync-detail-item .count {
         color: #666;
         font-size: 0.9em;
         margin-top: 3px;
+    }
+    .odoo-toolbar {
+        margin-bottom: 32px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .odoo-toolbar-left h1 {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #4285F4;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .odoo-toolbar-right .btn {
+        margin-left: 10px;
+    }
+    .swal2-popup pre {
+        text-align: left;
+        direction: ltr;
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 12px 10px;
+        font-size: 1em;
+        font-family: 'Consolas', 'monospace';
+        white-space: pre-wrap;
+        word-break: break-all;
+        margin: 0;
+    }
+    .swal2-details-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0;
+        background: #f8f9fa;
+        border-radius: 8px;
+        overflow: hidden;
+        font-size: 1.05em;
+    }
+    .swal2-details-table th, .swal2-details-table td {
+        padding: 8px 14px;
+        border-bottom: 1px solid #e3e7ed;
+        text-align: right;
+    }
+    .swal2-details-table th {
+        background: #e3e7ed;
+        color: #4285F4;
+        font-weight: bold;
+    }
+    .swal2-details-table tr:last-child td {
+        border-bottom: none;
+    }
+    .swal2-details-table .status-success {
+        color: #137333;
+        font-weight: bold;
+    }
+    .swal2-details-table .status-error {
+        color: #a50e0e;
+        font-weight: bold;
+    }
+    .swal2-details-table .status-warning {
+        color: #a05e03;
+        font-weight: bold;
+    }
+    .details-btn {
+        background: linear-gradient(90deg, #4285F4 0%, #34A853 100%);
+        color: #fff !important;
+        border: none;
+        border-radius: 6px;
+        padding: 5px 18px;
+        font-size: 1em;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background 0.2s, box-shadow 0.2s;
+        box-shadow: 0 2px 8px rgba(66,133,244,0.07);
+    }
+    .details-btn:hover {
+        background: linear-gradient(90deg, #34A853 0%, #4285F4 100%);
+        color: #fff;
+        box-shadow: 0 4px 16px rgba(66,133,244,0.13);
+    }
+    .pagination {
+        display: flex;
+        justify-content: center;
+        margin-top: 1.5rem;
+        margin-bottom: 1.5rem;
+        gap: 0.5rem;
+    }
+    .pagination .page-link {
+        color: #4285F4;
+        border: 1px solid #e3e7ed;
+        border-radius: 6px;
+        padding: 6px 14px;
+        background: #fff;
+        transition: background 0.2s;
+    }
+    .pagination .page-link.active, .pagination .page-link:active {
+        background: #4285F4;
+        color: #fff;
+        border-color: #4285F4;
+    }
+    .pagination .page-link.disabled {
+        color: #bbb;
+        pointer-events: none;
+        background: #f8f9fa;
+    }
+    @media (max-width: 768px) {
+        .sync-card, .sync-header, .sync-footer, .sync-body {
+            padding-left: 10px !important;
+            padding-right: 10px !important;
+        }
+        .odoo-toolbar {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        .odoo-toolbar-right {
+            width: 100%;
+            display: flex;
+            gap: 10px;
+        }
     }
 </style>
 {% endblock %}
@@ -162,9 +263,7 @@
         <div class="col-md-6 mb-4">
             <div class="card sync-card">
                 <div class="sync-header">
-                    <h5 class="mb-0">
-                        <i class="fas fa-sync-alt me-2"></i> حالة المزامنة
-                    </h5>
+                    <i class="fas fa-sync-alt me-2"></i> حالة المزامنة
                 </div>
                 <div class="sync-body">
                     {% if config %}
@@ -191,9 +290,9 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <span>حالة الاتصال:</span>
                         {% if connection_status %}
-                        <span class="badge bg-success">متصل</span>
+                        <span class="badge sync-status sync-status-success">متصل</span>
                         {% else %}
-                        <span class="badge bg-danger">غير متصل</span>
+                        <span class="badge sync-status sync-status-error">غير متصل</span>
                         {% endif %}
                     </div>
                     {% else %}
@@ -204,14 +303,12 @@
                     {% endif %}
                 </div>
                 <div class="sync-footer">
-                    <div class="d-flex justify-content-between">
-                        <a href="{% url 'odoo_db_manager:google_sync_test' %}" class="btn btn-outline-primary">
-                            <i class="fas fa-vial"></i> اختبار الاتصال
-                        </a>
-                        <a href="{% url 'odoo_db_manager:google_sync_now' %}" class="btn btn-success">
-                            <i class="fas fa-sync-alt"></i> مزامنة الآن
-                        </a>
-                    </div>
+                    <a href="{% url 'odoo_db_manager:google_sync_test' %}" class="btn btn-outline-primary">
+                        <i class="fas fa-vial"></i> اختبار الاتصال
+                    </a>
+                    <a href="{% url 'odoo_db_manager:google_sync_now' %}" class="btn btn-success">
+                        <i class="fas fa-sync-alt"></i> مزامنة الآن
+                    </a>
                 </div>
             </div>
         </div>
@@ -220,58 +317,72 @@
         <div class="col-md-6 mb-4">
             <div class="card sync-card">
                 <div class="sync-header">
-                    <h5 class="mb-0">
-                        <i class="fas fa-sliders-h me-2"></i> خيارات المزامنة
-                    </h5>
+                    <i class="fas fa-sliders-h me-2"></i> خيارات المزامنة
                 </div>
                 <div class="sync-body">
                     {% if config %}
-                    <form id="sync-options-form">
+                    <form id="sync-options-form" method="post" action="{% url 'odoo_db_manager:google_sync_now' %}">
+                        {% csrf_token %}
                         <div class="sync-options">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="full_backup" id="full_backup" checked>
+                                <label class="form-check-label fw-bold" for="full_backup">
+                                    <i class="fas fa-database me-1"></i> مزامنة شاملة (نسخ كل الجداول دفعة واحدة)
+                                </label>
+                            </div>
+                            <div class="mb-2 text-muted" style="font-size: 0.95em;">
+                                إذا اخترت أي جدول منفصل بالأسفل سيتم إلغاء المزامنة الشاملة.
+                            </div>
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="sync_databases" id="sync_databases" {% if config.sync_databases %}checked{% endif %}>
+                                        <input class="form-check-input sync-table-checkbox" type="checkbox" name="selected_tables" value="databases" id="sync_databases">
                                         <label class="form-check-label" for="sync_databases">
-                                            <i class="fas fa-database me-1"></i> مزامنة قواعد البيانات
+                                            <i class="fas fa-database me-1"></i> قواعد البيانات
                                         </label>
                                     </div>
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="sync_users" id="sync_users" {% if config.sync_users %}checked{% endif %}>
+                                        <input class="form-check-input sync-table-checkbox" type="checkbox" name="selected_tables" value="users" id="sync_users">
                                         <label class="form-check-label" for="sync_users">
-                                            <i class="fas fa-users me-1"></i> مزامنة المستخدمين
+                                            <i class="fas fa-users me-1"></i> المستخدمين
                                         </label>
                                     </div>
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="sync_customers" id="sync_customers" {% if config.sync_customers %}checked{% endif %}>
+                                        <input class="form-check-input sync-table-checkbox" type="checkbox" name="selected_tables" value="customers" id="sync_customers">
                                         <label class="form-check-label" for="sync_customers">
-                                            <i class="fas fa-user-tie me-1"></i> مزامنة العملاء
+                                            <i class="fas fa-user-tie me-1"></i> العملاء
                                         </label>
                                     </div>
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="sync_inspections" id="sync_inspections" {% if config.sync_inspections %}checked{% endif %}>
+                                        <input class="form-check-input sync-table-checkbox" type="checkbox" name="selected_tables" value="inspections" id="sync_inspections">
                                         <label class="form-check-label" for="sync_inspections">
-                                            <i class="fas fa-search me-1"></i> مزامنة المعاينات
+                                            <i class="fas fa-search me-1"></i> المعاينات
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input sync-table-checkbox" type="checkbox" name="selected_tables" value="branches" id="sync_branches">
+                                        <label class="form-check-label" for="sync_branches">
+                                            <i class="fas fa-code-branch me-1"></i> الفروع
                                         </label>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="sync_orders" id="sync_orders" {% if config.sync_orders %}checked{% endif %}>
+                                        <input class="form-check-input sync-table-checkbox" type="checkbox" name="selected_tables" value="orders" id="sync_orders">
                                         <label class="form-check-label" for="sync_orders">
-                                            <i class="fas fa-shopping-cart me-1"></i> مزامنة الطلبات
+                                            <i class="fas fa-shopping-cart me-1"></i> الطلبات
                                         </label>
                                     </div>
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="sync_products" id="sync_products" {% if config.sync_products %}checked{% endif %}>
+                                        <input class="form-check-input sync-table-checkbox" type="checkbox" name="selected_tables" value="products" id="sync_products">
                                         <label class="form-check-label" for="sync_products">
-                                            <i class="fas fa-box me-1"></i> مزامنة المنتجات
+                                            <i class="fas fa-box me-1"></i> المنتجات
                                         </label>
                                     </div>
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="sync_settings" id="sync_settings" {% if config.sync_settings %}checked{% endif %}>
+                                        <input class="form-check-input sync-table-checkbox" type="checkbox" name="selected_tables" value="settings" id="sync_settings">
                                         <label class="form-check-label" for="sync_settings">
-                                            <i class="fas fa-cogs me-1"></i> مزامنة الإعدادات
+                                            <i class="fas fa-cogs me-1"></i> الإعدادات
                                         </label>
                                     </div>
                                 </div>
@@ -283,8 +394,34 @@
                                 <input type="number" class="form-control" id="sync_frequency" name="sync_frequency" value="{{ config.sync_frequency }}" min="1" max="168">
                             </div>
                         </div>
-                        <button type="button" id="sync-now">مزامنة الآن</button>
+                        <button type="submit" class="btn btn-success mt-3" id="sync-now-btn">
+                            <i class="fas fa-sync-alt"></i> مزامنة الآن
+                        </button>
                     </form>
+                    <script>
+                        // تعطيل full_backup إذا تم اختيار أي جدول منفصل والعكس
+                        document.addEventListener('DOMContentLoaded', function() {
+                            const fullBackupCheckbox = document.getElementById('full_backup');
+                            const tableCheckboxes = document.querySelectorAll('.sync-table-checkbox');
+                            function updateFullBackupState() {
+                                let anyChecked = false;
+                                tableCheckboxes.forEach(cb => {
+                                    if (cb.checked) anyChecked = true;
+                                });
+                                fullBackupCheckbox.checked = !anyChecked;
+                                fullBackupCheckbox.disabled = anyChecked;
+                            }
+                            tableCheckboxes.forEach(cb => {
+                                cb.addEventListener('change', updateFullBackupState);
+                            });
+                            fullBackupCheckbox.addEventListener('change', function() {
+                                if (fullBackupCheckbox.checked) {
+                                    tableCheckboxes.forEach(cb => cb.checked = false);
+                                    fullBackupCheckbox.disabled = false;
+                                }
+                            });
+                        });
+                    </script>
                     {% else %}
                     <div class="alert alert-warning mb-0">
                         <i class="fas fa-exclamation-triangle me-2"></i>
@@ -305,22 +442,71 @@
                     <th>التاريخ</th>
                     <th>الحالة</th>
                     <th>الرسالة</th>
-                    <th>الإجراءات</th>
+                    <th>تفاصيل</th>
                 </tr>
             </thead>
             <tbody>
-                <!-- سيتم ملء السجلات هنا بواسطة جافا سكريبت -->
+                {% for log in sync_logs %}
+                <tr>
+                    <td>{{ log.created_at|date:"Y-m-d H:i" }}</td>
+                    <td>
+                        {% if log.status == 'success' %}
+                            <span class="badge sync-status sync-status-success">نجاح</span>
+                        {% elif log.status == 'error' %}
+                            <span class="badge sync-status sync-status-error">خطأ</span>
+                        {% else %}
+                            <span class="badge sync-status sync-status-warning">تحذير</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ log.message|truncatechars:120 }}</td>
+                    <td>
+                        {% if log.details %}
+                        <button class="details-btn" type="button"
+                            onclick="showLogDetailsSwal({{ forloop.counter0 }})">
+                            <i class="fas fa-eye"></i> عرض التفاصيل
+                        </button>
+                        <script type="application/json" id="json-data-{{ forloop.counter0 }}">
+                            {{ log.details|safe|escapejs }}
+                        </script>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted">لا يوجد سجلات مزامنة بعد.</td>
+                </tr>
+                {% endfor %}
             </tbody>
         </table>
+        <!-- Pagination -->
+        {% if paginator.num_pages > 1 %}
+        <nav class="pagination">
+            {% if sync_logs.has_previous %}
+                <a class="page-link" href="?page={{ sync_logs.previous_page_number }}">السابق</a>
+            {% else %}
+                <span class="page-link disabled">السابق</span>
+            {% endif %}
+            {% for num in paginator.page_range %}
+                {% if sync_logs.number == num %}
+                    <span class="page-link active">{{ num }}</span>
+                {% else %}
+                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                {% endif %}
+            {% endfor %}
+            {% if sync_logs.has_next %}
+                <a class="page-link" href="?page={{ sync_logs.next_page_number }}">التالي</a>
+            {% else %}
+                <span class="page-link disabled">التالي</span>
+            {% endif %}
+        </nav>
+        {% endif %}
     </div>
 
     <!-- معلومات جدول البيانات -->
     {% if config %}
     <div class="card sync-card">
         <div class="sync-header">
-            <h5 class="mb-0">
-                <i class="fas fa-table me-2"></i> معلومات جدول البيانات
-            </h5>
+            <i class="fas fa-table me-2"></i> معلومات جدول البيانات
         </div>
         <div class="sync-body">
             <div class="row">
@@ -355,14 +541,12 @@
                     </div>
                 </div>
                 <div class="sync-footer">
-                    <div class="d-flex justify-content-between">
-                        <a href="https://docs.google.com/spreadsheets/d/{{ config.spreadsheet_id }}" target="_blank" class="btn btn-outline-success">
-                            <i class="fas fa-external-link-alt me-1"></i> فتح في Google Sheets
-                        </a>
-                        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#resetModal">
-                            <i class="fas fa-trash-alt me-1"></i> إعادة تعيين البيانات
-                        </button>
-                    </div>
+                    <a href="https://docs.google.com/spreadsheets/d/{{ config.spreadsheet_id }}" target="_blank" class="btn btn-outline-success">
+                        <i class="fas fa-external-link-alt me-1"></i> فتح في Google Sheets
+                    </a>
+                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#resetModal">
+                        <i class="fas fa-trash-alt me-1"></i> إعادة تعيين البيانات
+                    </button>
                 </div>
             </div>
         </div>
@@ -396,250 +580,63 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://unpkg.com/@popperjs/core@2"></script>
-<script src="https://unpkg.com/tippy.js@6"></script>
-<script>    function sanitizeJSON(input) {
-        // Handle non-string input
-        if (typeof input !== 'string') {
-            try {
-                return JSON.stringify(input);
-            } catch (e) {
-                console.error('Error stringifying object:', e);
-                return '{}';
-            }
+<!-- SweetAlert2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+function showLogDetailsSwal(idx) {
+    var script = document.getElementById('json-data-' + idx);
+    if (!script) return;
+    var jsonText = script.textContent || script.innerText;
+    var jsonObj;
+    try {
+        // معالجة التفاصيل إذا كانت string وليست JSON حقيقي (مثلاً: {users: ...})
+        if (typeof jsonText === 'string' && jsonText.trim().startsWith('{') && !jsonText.trim().startsWith('{"')) {
+            // أضف علامات اقتباس حول المفاتيح
+            jsonText = jsonText.replace(/([{,]\s*)([a-zA-Z0-9_ء-ي]+)\s*:/g, '$1"$2":');
         }
-
-        // If input is empty or not a string
-        if (!input || typeof input !== 'string') {
-            return '{}';
-        }
-        
-        try {
-            // First try parsing it to see if it's already valid JSON
-            try {
-                const parsed = JSON.parse(input);
-                return JSON.stringify(parsed);
-            } catch (parseError) {
-                // Not valid JSON, continue to cleaning
-            }
-        } catch (e) {
-            try {
-                // Remove any leading/trailing whitespace and BOM
-                let str = input.trim().replace(/^\uFEFF/, '');
-                
-                // Remove any invalid escape sequences
-                str = str.replace(/\\(?!["\\\/bfnrt])/g, '');
-                
-                // Handle properly escaped quotes
-                str = str.replace(/\\"/g, '@QUOTE@')
-                         .replace(/"/g, '\\"')
-                         .replace(/@QUOTE@/g, '\\"');
-                
-                // Handle unescaped quotes
-                str = str.replace(/([^\\])"/g, '$1\\"');
-                
-                // Handle special characters
-                str = str.replace(/[\n]/g, '\\n')
-                         .replace(/[\r]/g, '\\r')
-                         .replace(/[\t]/g, '\\t')
-                         .replace(/[\b]/g, '\\b')
-                         .replace(/[\f]/g, '\\f');
-                
-                // Remove other control characters
-                str = str.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
-                
-                // Ensure proper JSON structure
-                if (str && !str.startsWith('{') && !str.startsWith('[')) {
-                    // Check if it looks like a key-value pair
-                    if (str.includes(':')) {
-                        str = '{' + str + '}';
-                    } else {
-                        str = '"' + str + '"';
-                    }
-                }
-                
-                // Final validation
-                const parsed = JSON.parse(str);
-                return JSON.stringify(parsed);
-            } catch (e) {
-                console.error('Error cleaning JSON:', e, 'Input:', input);
-                return '{}';
-            }
-        }
+        jsonObj = JSON.parse(jsonText);
+    } catch (e) {
+        jsonObj = jsonText;
     }
 
-    function getStatusBadgeClass(status) {
-        switch (status?.toLowerCase()) {
-            case 'success': return 'bg-success';
-            case 'error': return 'bg-danger';
-            case 'warning': return 'bg-warning text-dark';
-            default: return 'bg-secondary';
+    // إذا كان jsonObj هو كائن النتائج المتوقع (dict of dicts)
+    if (typeof jsonObj === 'object' && jsonObj !== null && !Array.isArray(jsonObj)) {
+        let htmlContent = `<table class="swal2-details-table"><thead><tr><th>الجدول</th><th>الحالة</th><th>الرسالة</th></tr></thead><tbody>`;
+        for (const [key, value] of Object.entries(jsonObj)) {
+            let status = value.status || '';
+            let statusClass = '';
+            if (status === 'success') statusClass = 'status-success';
+            else if (status === 'error') statusClass = 'status-error';
+            else if (status === 'warning') statusClass = 'status-warning';
+            htmlContent += `<tr>
+                <td>${key}</td>
+                <td class="${statusClass}">${status}</td>
+                <td>${value.message || ''}</td>
+            </tr>`;
         }
-    }    function createDetailsContent(details) {
-        // حالات خاصة للقيم غير الصالحة
-        if (!details || 
-            details === 'undefined' || 
-            details === undefined || 
-            typeof details === 'undefined' ||
-            details === 'null' ||
-            details === null) {
-            return 'لا توجد تفاصيل متاحة';
-        }
-
-        try {
-            let parsedDetails;
-            if (typeof details === 'string') {
-                // إذا كانت السلسلة فارغة أو تحتوي فقط على مسافات
-                if (!details.trim()) {
-                    return 'لا توجد تفاصيل متاحة';
-                }
-                // محاولة تحليل JSON بعد التنظيف
-                const cleanedJSON = sanitizeJSON(details);
-                if (!cleanedJSON || cleanedJSON === '{}') {
-                    return 'لا توجد تفاصيل متاحة';
-                }
-                parsedDetails = JSON.parse(cleanedJSON);
-            } else {
-                parsedDetails = details;
-            }
-
-            let content = '<div class="sync-details" style="text-align: right; direction: rtl; padding: 10px;">';
-            
-            for (const [key, value] of Object.entries(parsedDetails)) {
-                const status = value?.status || 'unknown';
-                const message = value?.message || 'لا توجد رسالة';
-                const count = value?.count || 0;
-                const statusClass = getStatusBadgeClass(status);
-                
-                content += `
-                    <div style="margin-bottom: 10px; padding: 8px; border-radius: 6px; background-color: #f8f9fa; border-right: 3px solid ${getStatusColor(status)};">
-                        <div style="font-weight: bold; margin-bottom: 5px;">${key}</div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span class="badge ${statusClass}">${status}</span>
-                            <span style="flex: 1;">${message}</span>
-                        </div>
-                        ${count > 0 ? `<div style="color: #666; font-size: 0.9em; margin-top: 5px;">العدد: ${count}</div>` : ''}
-                    </div>
-                `;
-            }
-            
-            content += '</div>';
-            return content;
-        } catch (error) {
-            console.error('خطأ في معالجة التفاصيل:', error);
-            return '<div style="color: red; text-align: right;">خطأ في معالجة التفاصيل</div>';
-        }
-    }
-
-    function getStatusColor(status) {
-        switch (status?.toLowerCase()) {
-            case 'success': return '#28a745';
-            case 'error': return '#dc3545';
-            case 'warning': return '#ffc107';
-            default: return '#6c757d';
-        }
-    }
-
-    function fetchSyncLogs() {
-        fetch('{% url "odoo_db_manager:google_sync_logs_api" %}')
-            .then(response => response.json())
-            .then(data => {
-                const tbody = document.querySelector('#sync-log-table tbody');
-                if (!tbody) return;                tbody.innerHTML = data.logs.map(log => {
-                    let detailsStr = '';
-                    if (log.details) {
-                        try {
-                            // If it's already a string, ensure it's complete JSON
-                            if (typeof log.details === 'string') {
-                                // Fix truncated messages by looking for incomplete properties
-                                const matches = log.details.match(/"message"\s*:\s*"[^"]*$/);
-                                if (matches) {
-                                    // Message was cut off, let's complete it
-                                    log.details = log.details.replace(/"message"\s*:\s*"[^"]*$/, '"message": "Message truncated..."');
-                                }
-                                
-                                // Ensure all objects are properly closed
-                                const openBraces = (log.details.match(/{/g) || []).length;
-                                const closeBraces = (log.details.match(/}/g) || []).length;
-                                if (openBraces > closeBraces) {
-                                    log.details += '}'.repeat(openBraces - closeBraces);
-                                }
-                                
-                                detailsStr = log.details;
-                            } else {
-                                // It's an object, stringify it
-                                detailsStr = JSON.stringify(log.details);
-                            }
-                        } catch (e) {
-                            console.error('Error processing details:', e);
-                        }
-                    }
-
-                    return `
-                        <tr>
-                            <td>${log.created_at}</td>
-                            <td>
-                                <span class="badge ${getStatusBadgeClass(log.status)}">${log.status}</span>
-                            </td>
-                            <td>${log.message}</td>
-                            <td>                                <button class="btn btn-info btn-sm details-btn" 
-                                        ${detailsStr && detailsStr !== 'undefined' ? `data-details='${sanitizeJSON(detailsStr)}'` : ''}
-                                        ${!detailsStr || detailsStr === 'undefined' ? 'disabled' : ''}>
-                                    <i class="fas fa-info-circle"></i> عرض التفاصيل
-                                </button>
-                            </td>
-                        </tr>
-                    `;
-                }).join('');
-
-                // إعادة تهيئة Tippy
-                initializeTippy();
-            })
-            .catch(error => {
-                console.error('فشل تحميل سجل المزامنة:', error);
-            });
-    }    function initializeTippy() {
-        // إزالة أي tooltips سابقة
-        document.querySelectorAll('.details-btn[data-tippy-root]').forEach(el => {
-            if (el._tippy) {
-                el._tippy.destroy();
+        htmlContent += `</tbody></table>`;
+        Swal.fire({
+            title: 'تفاصيل السجل',
+            html: htmlContent,
+            width: 800,
+            confirmButtonText: 'إغلاق',
+            customClass: {
+                popup: 'swal2-details-popup'
             }
         });
-
-        // تهيئة Tippy للأزرار الجديدة
-        tippy('.details-btn:not([disabled])', {
-            content(reference) {
-                try {
-                    const details = reference.dataset.details;
-                    // التحقق من البيانات قبل محاولة معالجتها
-                    if (!details || 
-                        details === 'undefined' || 
-                        details === undefined || 
-                        details === 'null' || 
-                        details === null) {
-                        return 'لا توجد تفاصيل متاحة';
-                    }
-                    return createDetailsContent(details);
-                } catch (e) {
-                    console.error('Error creating tippy content:', e);
-                    return 'خطأ في عرض التفاصيل';
-                }
-            },
-            allowHTML: true,
-            interactive: true,
-            theme: 'light',
-            placement: 'left',
-            maxWidth: 400,
-            trigger: 'click',
-            appendTo: document.body
+    } else {
+        // fallback: عرض كـ JSON عادي
+        let htmlContent = `<pre>${typeof jsonObj === 'object' ? JSON.stringify(jsonObj, null, 2) : jsonObj}</pre>`;
+        Swal.fire({
+            title: 'تفاصيل السجل',
+            html: htmlContent,
+            width: 800,
+            confirmButtonText: 'إغلاق',
+            customClass: {
+                popup: 'swal2-details-popup'
+            }
         });
     }
-
-    // تحديث السجلات عند تحميل الصفحة
-    document.addEventListener('DOMContentLoaded', () => {
-        fetchSyncLogs();
-        // تحديث كل 30 ثانية
-        setInterval(fetchSyncLogs, 30000);
-    });
+}
 </script>
 {% endblock %}

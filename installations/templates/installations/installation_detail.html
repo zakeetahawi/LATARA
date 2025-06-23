@@ -178,7 +178,11 @@
                         <div class="col-md-6">
                             <small class="text-muted">
                                 <strong>{% trans "تم الإنشاء بواسطة:" %}</strong>
-                                {{ installation.created_by.get_full_name }}
+                                {% if installation.created_by %}
+                                    {{ installation.created_by.get_full_name|default:installation.created_by.username }}
+                                {% else %}
+                                    غير محدد
+                                {% endif %}
                             </small>
                         </div>
                         <div class="col-md-6">
@@ -300,7 +304,11 @@
                                     </td>
                                     <td>
                                         {% if step.completed_by %}
-                                            {{ step.completed_by.get_full_name }}
+                                            {% if step.completed_by %}
+                                                {{ step.completed_by.get_full_name|default:step.completed_by.username }}
+                                            {% else %}
+                                                غير محدد
+                                            {% endif %}
                                         {% else %}
                                             <span class="text-muted">{% trans "غير محدد" %}</span>
                                         {% endif %}

@@ -6,6 +6,9 @@ from django.db import models  # Add this import at the top
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
+# استيراد النماذج المتقدمة للمزامنة
+from .google_sync_advanced import GoogleSheetMapping, GoogleSyncTask, GoogleSyncConflict, GoogleSyncSchedule
+
 class ImportLog(models.Model):
     """سجل عمليات الاستيراد"""
     sheet_name = models.CharField(_('اسم الجدول'), max_length=100)
@@ -245,7 +248,7 @@ class Database(models.Model):
                 settings['databases'][str(self.pk)] = self.connection_info.copy()
             else:
                 settings['databases'][str(self.pk)] = self.connection_info.copy()
-            
+
             # إزالة TIME_ZONE إذا كان موجوداً (لأنه يسبب مشاكل في PostgreSQL)
             if 'TIME_ZONE' in settings['databases'][str(self.pk)]:
                 del settings['databases'][str(self.pk)]['TIME_ZONE']
@@ -284,26 +287,26 @@ class Database(models.Model):
         """تنشيط قاعدة البيانات"""
         try:
             print(f"🔄 بدء تنشيط قاعدة البيانات: {self.name}")
-            
+
             # تعطيل جميع قواعد البيانات الأخرى
             print("📝 تعطيل قواعد البيانات الأخرى...")
             Database.objects.exclude(pk=self.pk).update(is_active=False)
-            
+
             # تنشيط قاعدة البيانات الحالية
             print("✅ تنشيط قاعدة البيانات الحالية...")
             self.is_active = True
             self.save()
-            
+
             # تحديث ملف .env
             print("📄 تحديث ملف .env...")
             env_updated = self.update_env_file()
             print(f"نتيجة تحديث .env: {env_updated}")
-            
+
             # تحديث ملف db_settings.json
             print("⚙️ تحديث ملف db_settings.json...")
             settings_updated = self.update_settings_file()
             print(f"نتيجة تحديث settings: {settings_updated}")
-            
+
             # التحقق من نجاح التحديث
             if env_updated and settings_updated:
                 print(f"✅ تم تنشيط قاعدة البيانات {self.name} بنجاح")
@@ -333,16 +336,16 @@ class Database(models.Model):
                     # إغلاق جميع الاتصالات الحالية أولاً
                     print("🔌 إغلاق جميع الاتصالات الحالية...")
                     connections.close_all()
-                    
+
                     # تحديث إعدادات قاعدة البيانات
                     print("⚙️ تحديث إعدادات قاعدة البيانات في Django...")
                     settings.DATABASES['default'] = db_config
-                    
+
                     # إعادة تعيين مدير الاتصالات لضمان استخدام الإعدادات الجديدة
                     # نحتاج لإجبار Django على إعادة إنشاء الاتصالات
                     if 'default' in connections:
                         del connections['default']
-                    
+
                     # اختبار الاتصال الجديد
                     print("🧪 اختبار الاتصال الجديد...")
                     from django.db import connection
@@ -350,9 +353,9 @@ class Database(models.Model):
                         cursor.execute("SELECT current_database()")
                         result = cursor.fetchone()
                     current_db = result[0] if result else "غير معروف"
-                    
+
                     print(f"✅ تم تحديث إعدادات Django في الذاكرة بنجاح - قاعدة البيانات الحالية: {current_db}")
-                    
+
                     if current_db == connection_info.get('NAME'):
                         print("🎉 تم التبديل بنجاح إلى قاعدة البيانات الجديدة!")
                         # تشغيل migrations للتأكد من وجود جميع الجداول المطلوبة
@@ -363,7 +366,7 @@ class Database(models.Model):
                         except Exception as migration_error:
                             print(f"⚠️ خطأ في تشغيل migrations: {str(migration_error)}")
                             # رغم خطأ migrations، التبديل نجح
-                        
+
                         return {'success': True, 'requires_restart': False, 'database_name': self.name}
                     else:
                         print(f"⚠️ لم يتم التبديل بنجاح. قاعدة البيانات الحالية: {current_db}, المطلوبة: {connection_info.get('NAME')}")

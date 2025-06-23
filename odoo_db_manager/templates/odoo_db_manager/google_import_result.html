@@ -1,0 +1,468 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'odoo_db_manager/css/style.css' %}">
+<style>
+    .result-card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    .success-header {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        border-radius: 15px 15px 0 0;
+        padding: 30px;
+        text-align: center;
+    }
+    .partial-header {
+        background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+        color: white;
+        border-radius: 15px 15px 0 0;
+        padding: 30px;
+        text-align: center;
+    }
+    .error-header {
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        color: white;
+        border-radius: 15px 15px 0 0;
+        padding: 30px;
+        text-align: center;
+    }
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin: 20px 0;
+    }
+    .stat-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        border: 2px solid #e9ecef;
+        transition: transform 0.2s;
+    }
+    .stat-card:hover {
+        transform: translateY(-5px);
+        border-color: #007bff;
+    }
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    .stat-label {
+        color: #6c757d;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .progress-circle {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px;
+        position: relative;
+    }
+    .progress-circle.success {
+        background: conic-gradient(#28a745 0deg {{ success_percentage|floatformat:0 }}%, #e9ecef {{ success_percentage|floatformat:0 }}% 360deg);
+    }
+    .progress-circle.partial {
+        background: conic-gradient(#ffc107 0deg {{ success_percentage|floatformat:0 }}%, #e9ecef {{ success_percentage|floatformat:0 }}% 360deg);
+    }
+    .progress-circle-inner {
+        width: 90px;
+        height: 90px;
+        background: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+    }
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 25px;
+        padding: 12px 30px;
+        font-weight: 600;
+    }
+    .action-buttons {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 30px;
+    }
+    .error-details {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    .timeline-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+    .timeline-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        margin-left: 15px;
+    }
+    .timeline-content {
+        flex: 1;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- العنوان والتنقل -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="display-6 mb-0">
+                <i class="fas fa-check-circle text-success"></i>
+                {{ title }}
+            </h1>
+            <p class="text-muted">نتائج عملية الاستيراد من Google Sheets</p>
+        </div>
+        <div>
+            <a href="{% url 'odoo_db_manager:google_import_dashboard' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-home"></i> العودة للرئيسية
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- النتائج الرئيسية -->
+        <div class="col-lg-8">
+            <div class="card result-card">
+                <!-- رأس النتيجة -->
+                <div class="{% if import_log.status == 'success' %}success-header{% elif import_log.status == 'partial' %}partial-header{% else %}error-header{% endif %}">
+                    {% if import_log.status == 'success' %}
+                        <i class="fas fa-check-circle" style="font-size: 4rem; margin-bottom: 15px;"></i>
+                        <h2>تم الاستيراد بنجاح!</h2>
+                        <p class="mb-0">تمت عملية الاستيراد بنجاح بدون أخطاء</p>
+                    {% elif import_log.status == 'partial' %}
+                        <i class="fas fa-exclamation-triangle" style="font-size: 4rem; margin-bottom: 15px;"></i>
+                        <h2>تم الاستيراد جزئياً</h2>
+                        <p class="mb-0">تمت عملية الاستيراد مع بعض الأخطاء</p>
+                    {% else %}
+                        <i class="fas fa-times-circle" style="font-size: 4rem; margin-bottom: 15px;"></i>
+                        <h2>فشل الاستيراد</h2>
+                        <p class="mb-0">لم يتم إكمال عملية الاستيراد بسبب أخطاء</p>
+                    {% endif %}
+                </div>
+
+                <div class="card-body">
+                    <!-- نسبة النجاح -->
+                    <div class="text-center mb-4">
+                        <div class="progress-circle {% if import_log.status == 'success' %}success{% else %}partial{% endif %}">
+                            <div class="progress-circle-inner">
+                                {{ success_percentage }}%
+                            </div>
+                        </div>
+                        <h4>معدل النجاح</h4>
+                    </div>
+
+                    <!-- إحصائيات مفصلة -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-number text-primary">{{ import_log.total_records }}</div>
+                            <div class="stat-label">إجمالي السجلات</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number text-success">{{ import_log.imported_records }}</div>
+                            <div class="stat-label">سجلات جديدة</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number text-info">{{ import_log.updated_records }}</div>
+                            <div class="stat-label">سجلات محدثة</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number text-danger">{{ import_log.failed_records }}</div>
+                            <div class="stat-label">سجلات فاشلة</div>
+                        </div>
+                    </div>
+
+                    <!-- تفاصيل الأخطاء -->
+                    {% if import_log.error_details %}
+                    <div class="mt-4">
+                        <h5>
+                            <i class="fas fa-exclamation-triangle text-warning"></i>
+                            تفاصيل الأخطاء
+                        </h5>
+                        <div class="error-details">
+                            <pre>{{ import_log.error_details }}</pre>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- أزرار الإجراءات -->
+                    <div class="action-buttons">
+                        <a href="{% url 'odoo_db_manager:google_import_form' %}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> استيراد جديد
+                        </a>
+                        
+                        {% if import_log.failed_records > 0 %}
+                        <button class="btn btn-warning" onclick="showFailedRecords()">
+                            <i class="fas fa-eye"></i> عرض السجلات الفاشلة
+                        </button>
+                        {% endif %}
+                        
+                        <a href="{% url 'customers:customer_list' %}" class="btn btn-outline-success">
+                            <i class="fas fa-users"></i> عرض العملاء
+                        </a>
+                        
+                        <button class="btn btn-outline-info" onclick="downloadReport()">
+                            <i class="fas fa-download"></i> تحميل التقرير
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- الشريط الجانبي -->
+        <div class="col-lg-4">
+            <!-- معلومات العملية -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-info-circle"></i>
+                        معلومات العملية
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="timeline-item">
+                        <div class="timeline-icon bg-primary">
+                            <i class="fas fa-table"></i>
+                        </div>
+                        <div class="timeline-content">
+                            <strong>الصفحة:</strong> {{ import_log.sheet_name }}
+                        </div>
+                    </div>
+                    
+                    <div class="timeline-item">
+                        <div class="timeline-icon bg-info">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="timeline-content">
+                            <strong>المستخدم:</strong> {{ import_log.user.get_full_name|default:import_log.user.username }}
+                        </div>
+                    </div>
+                    
+                    <div class="timeline-item">
+                        <div class="timeline-icon bg-success">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="timeline-content">
+                            <strong>التاريخ:</strong> {{ import_log.created_at|date:"Y-m-d H:i" }}
+                        </div>
+                    </div>
+                    
+                    <div class="timeline-item">
+                        <div class="timeline-icon {% if import_log.clear_existing %}bg-danger{% else %}bg-warning{% endif %}">
+                            <i class="fas fa-{% if import_log.clear_existing %}trash{% else %}plus{% endif %}"></i>
+                        </div>
+                        <div class="timeline-content">
+                            <strong>النوع:</strong> 
+                            {% if import_log.clear_existing %}
+                                استبدال البيانات
+                            {% else %}
+                                إضافة البيانات
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- نصائح للخطوات التالية -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-lightbulb"></i>
+                        الخطوات التالية
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled">
+                        {% if import_log.status == 'success' %}
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            راجع البيانات المستوردة
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            تحقق من صحة المعلومات
+                        </li>
+                        {% elif import_log.status == 'partial' %}
+                        <li class="mb-2">
+                            <i class="fas fa-exclamation text-warning"></i>
+                            راجع الأخطاء وصحح البيانات
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-exclamation text-warning"></i>
+                            أعد المحاولة للسجلات الفاشلة
+                        </li>
+                        {% else %}
+                        <li class="mb-2">
+                            <i class="fas fa-times text-danger"></i>
+                            راجع إعدادات Google Sheets
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-times text-danger"></i>
+                            تحقق من تنسيق البيانات
+                        </li>
+                        {% endif %}
+                        <li class="mb-2">
+                            <i class="fas fa-archive text-info"></i>
+                            احفظ نسخة احتياطية من البيانات
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- نافذة السجلات الفاشلة -->
+<div class="modal fade" id="failedRecordsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle text-warning"></i>
+                    السجلات الفاشلة
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="failedRecordsContent">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">جارٍ التحميل...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                <button type="button" class="btn btn-primary" onclick="downloadFailedRecords()">
+                    <i class="fas fa-download"></i> تحميل قائمة الأخطاء
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // تأثيرات الحركة للبطاقات
+    const statCards = document.querySelectorAll('.stat-card');
+    statCards.forEach((card, index) => {
+        setTimeout(() => {
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(20px)';
+            card.style.transition = 'all 0.3s ease';
+            setTimeout(() => {
+                card.style.opacity = '1';
+                card.style.transform = 'translateY(0)';
+            }, 100);
+        }, index * 100);
+    });
+});
+
+function showFailedRecords() {
+    const modal = new bootstrap.Modal(document.getElementById('failedRecordsModal'));
+    modal.show();
+    
+    // محاكاة جلب البيانات
+    setTimeout(() => {
+        document.getElementById('failedRecordsContent').innerHTML = `
+            <div class="alert alert-warning">
+                <h6>الأخطاء الموجودة:</h6>
+                <pre>{{ import_log.error_details|default:"لا توجد تفاصيل أخطاء متاحة" }}</pre>
+            </div>
+        `;
+    }, 1000);
+}
+
+function downloadReport() {
+    // إنشاء تقرير النتائج
+    const reportData = {
+        sheet_name: '{{ import_log.sheet_name }}',
+        total_records: {{ import_log.total_records }},
+        imported_records: {{ import_log.imported_records }},
+        updated_records: {{ import_log.updated_records }},
+        failed_records: {{ import_log.failed_records }},
+        success_rate: '{{ success_percentage }}%',
+        date: '{{ import_log.created_at|date:"Y-m-d H:i" }}',
+        user: '{{ import_log.user.get_full_name|default:import_log.user.username }}',
+        status: '{{ import_log.get_status_display }}'
+    };
+    
+    const reportText = `تقرير استيراد البيانات من Google Sheets
+=====================================
+
+الصفحة: ${reportData.sheet_name}
+التاريخ: ${reportData.date}
+المستخدم: ${reportData.user}
+الحالة: ${reportData.status}
+
+الإحصائيات:
+----------
+إجمالي السجلات: ${reportData.total_records}
+سجلات جديدة: ${reportData.imported_records}
+سجلات محدثة: ${reportData.updated_records}
+سجلات فاشلة: ${reportData.failed_records}
+معدل النجاح: ${reportData.success_rate}
+
+{% if import_log.error_details %}
+تفاصيل الأخطاء:
+--------------
+{{ import_log.error_details }}
+{% endif %}
+`;
+    
+    // تحميل التقرير كملف نصي
+    const blob = new Blob([reportText], { type: 'text/plain;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `import_report_{{ import_log.id }}_{{ import_log.created_at|date:"Y-m-d" }}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+}
+
+function downloadFailedRecords() {
+    const errorDetails = `{{ import_log.error_details|default:"لا توجد أخطاء" }}`;
+    const blob = new Blob([errorDetails], { type: 'text/plain;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `failed_records_{{ import_log.id }}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+}
+</script>
+{% endblock %}

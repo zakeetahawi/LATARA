@@ -1,0 +1,529 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}قائمة تعيينات المزامنة المتقدمة{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'odoo_db_manager/css/style.css' %}">
+<style>
+    .mapping-card {
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        background: #fff;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+    }
+
+    .mapping-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        transform: translateY(-2px);
+    }
+
+    .mapping-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .mapping-title {
+        font-size: 1.2em;
+        font-weight: bold;
+        color: #333;
+        margin: 0;
+    }
+
+    .mapping-status {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .status-badge {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.85em;
+        font-weight: 500;
+    }
+
+    .status-active {
+        background-color: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+
+    .status-inactive {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+
+    .mapping-info {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 15px;
+    }
+
+    .info-item {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .info-label {
+        font-size: 0.85em;
+        color: #666;
+        margin-bottom: 2px;
+    }
+
+    .info-value {
+        font-weight: 500;
+        color: #333;
+        word-break: break-all;
+    }
+
+    .mapping-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        padding-top: 15px;
+        border-top: 1px solid #eee;
+    }
+
+    .btn-sm {
+        padding: 6px 12px;
+        font-size: 0.875em;
+        border-radius: 4px;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+        background-color: #007bff;
+        color: white;
+        border: 1px solid #007bff;
+    }
+
+    .btn-primary:hover {
+        background-color: #0056b3;
+        border-color: #0056b3;
+        color: white;
+        text-decoration: none;
+    }
+
+    .btn-success {
+        background-color: #28a745;
+        color: white;
+        border: 1px solid #28a745;
+    }
+
+    .btn-success:hover {
+        background-color: #1e7e34;
+        border-color: #1e7e34;
+        color: white;
+        text-decoration: none;
+    }
+
+    .btn-warning {
+        background-color: #ffc107;
+        color: #212529;
+        border: 1px solid #ffc107;
+    }
+
+    .btn-warning:hover {
+        background-color: #e0a800;
+        border-color: #e0a800;
+        color: #212529;
+        text-decoration: none;
+    }
+
+    .btn-danger {
+        background-color: #dc3545;
+        color: white;
+        border: 1px solid #dc3545;
+    }
+
+    .btn-danger:hover {
+        background-color: #c82333;
+        border-color: #c82333;
+        color: white;
+        text-decoration: none;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #666;
+    }
+
+    .empty-state i {
+        font-size: 4em;
+        margin-bottom: 20px;
+        color: #ddd;
+    }
+
+    .toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        padding: 20px;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+
+    .toolbar h1 {
+        margin: 0;
+        color: #333;
+    }
+
+    .column-mappings {
+        font-size: 0.9em;
+        color: #666;
+        max-height: 100px;
+        overflow-y: auto;
+        background: #f8f9fa;
+        padding: 8px;
+        border-radius: 4px;
+        margin-top: 5px;
+    }
+
+    .column-mapping-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 2px 0;
+        border-bottom: 1px solid #eee;
+    }
+
+    .column-mapping-item:last-child {
+        border-bottom: none;
+    }
+
+    .arabic-text {
+        font-family: 'Segoe UI', 'Tahoma', 'Arial Unicode MS', 'Lucida Sans Unicode', sans-serif;
+        direction: rtl;
+        text-align: right;
+        unicode-bidi: embed;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+
+    .column-mapping-item .arabic-text {
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 500;
+    }
+
+    .column-mapping-item .text-muted {
+        font-size: 0.85em;
+        font-style: italic;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- شريط الأدوات -->
+    <div class="toolbar">
+        <h1>
+            <i class="fas fa-sync-alt"></i>
+            تعيينات المزامنة المتقدمة
+        </h1>
+        <div>
+            <a href="{% url 'odoo_db_manager:mapping_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i>
+                إنشاء تعيين جديد
+            </a>
+            <a href="{% url 'odoo_db_manager:advanced_sync_dashboard' %}" class="btn btn-secondary">
+                <i class="fas fa-dashboard"></i>
+                لوحة التحكم
+            </a>
+        </div>
+    </div>
+
+    <!-- قائمة التعيينات -->
+    {% if page_obj %}
+        <div class="row">
+            {% for mapping in page_obj %}
+            <div class="col-lg-6 col-xl-4">
+                <div class="mapping-card">
+                    <!-- رأس البطاقة -->
+                    <div class="mapping-header">
+                        <h3 class="mapping-title arabic-text">{{ mapping.name }}</h3>
+                        <div class="mapping-status">
+                            {% if mapping.is_active %}
+                                <span class="status-badge status-active">
+                                    <i class="fas fa-check-circle"></i>
+                                    نشط
+                                </span>
+                            {% else %}
+                                <span class="status-badge status-inactive">
+                                    <i class="fas fa-pause-circle"></i>
+                                    غير نشط
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- معلومات التعيين -->
+                    <div class="mapping-info">
+                        <div class="info-item">
+                            <span class="info-label">اسم الصفحة</span>
+                            <span class="info-value arabic-text">{{ mapping.sheet_name|default:"غير محدد" }}</span>
+                        </div>
+
+                        <div class="info-item">
+                            <span class="info-label">معرف الجدول</span>
+                            <span class="info-value">{{ mapping.spreadsheet_id|truncatechars:20 }}</span>
+                        </div>
+
+                        <div class="info-item">
+                            <span class="info-label">صف العناوين</span>
+                            <span class="info-value">{{ mapping.header_row }}</span>
+                        </div>
+
+                        <div class="info-item">
+                            <span class="info-label">صف البداية</span>
+                            <span class="info-value">{{ mapping.start_row }}</span>
+                        </div>
+
+                        <div class="info-item">
+                            <span class="info-label">آخر مزامنة</span>
+                            <span class="info-value">
+                                {% if mapping.last_sync %}
+                                    {{ mapping.last_sync|date:"Y-m-d H:i" }}
+                                {% else %}
+                                    لم تتم بعد
+                                {% endif %}
+                            </span>
+                        </div>
+
+                        <div class="info-item">
+                            <span class="info-label">آخر صف معالج</span>
+                            <span class="info-value">{{ mapping.last_row_processed|default:"لا يوجد" }}</span>
+                        </div>
+                    </div>
+
+                    <!-- إعدادات الإنشاء التلقائي -->
+                    <div class="info-item">
+                        <span class="info-label">الإنشاء التلقائي</span>
+                        <div class="info-value">
+                            {% if mapping.auto_create_customers %}
+                                <span class="badge badge-success">العملاء</span>
+                            {% endif %}
+                            {% if mapping.auto_create_orders %}
+                                <span class="badge badge-success">الطلبات</span>
+                            {% endif %}
+                            {% if mapping.auto_create_inspections %}
+                                <span class="badge badge-success">المعاينات</span>
+                            {% endif %}
+                            {% if mapping.auto_create_installations %}
+                                <span class="badge badge-success">التركيبات</span>
+                            {% endif %}
+                            {% if not mapping.auto_create_customers and not mapping.auto_create_orders and not mapping.auto_create_inspections and not mapping.auto_create_installations %}
+                                <span class="text-muted">غير مفعل</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- تعيينات الأعمدة -->
+                    {% if mapping.column_mappings %}
+                    <div class="info-item">
+                        <span class="info-label">تعيينات الأعمدة ({{ mapping.column_mappings|length }})</span>
+                        <div class="column-mappings">
+                            {% for column, field_type in mapping.get_clean_column_mappings.items %}
+                            <div class="column-mapping-item">
+                                <span class="arabic-text" title="{{ column }}">{{ column|truncatechars:30 }}</span>
+                                <span class="text-muted">{{ field_type }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- أزرار الإجراءات -->
+                    <div class="mapping-actions">
+                        <a href="{% url 'odoo_db_manager:mapping_detail' mapping.id %}"
+                           class="btn btn-sm btn-primary" title="عرض التفاصيل">
+                            <i class="fas fa-eye"></i>
+                            عرض
+                        </a>
+
+                        <a href="{% url 'odoo_db_manager:mapping_detail' mapping.id %}"
+                           class="btn btn-sm btn-warning" title="تعديل التعيين">
+                            <i class="fas fa-edit"></i>
+                            تعديل
+                        </a>
+
+                        {% if mapping.is_active %}
+                        <button onclick="runSync({{ mapping.id }}, '{{ mapping.name }}')"
+                                class="btn btn-sm btn-success" title="تشغيل المزامنة">
+                            <i class="fas fa-sync-alt"></i>
+                            مزامنة
+                        </button>
+                        {% endif %}
+
+                        <button onclick="deleteMapping({{ mapping.id }}, '{{ mapping.name }}')"
+                                class="btn btn-sm btn-danger" title="حذف التعيين">
+                            <i class="fas fa-trash"></i>
+                            حذف
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <!-- حالة فارغة -->
+        <div class="empty-state">
+            <i class="fas fa-sync-alt"></i>
+            <h3>لا توجد تعيينات مزامنة</h3>
+            <p>ابدأ بإنشاء تعيين جديد لمزامنة البيانات مع Google Sheets</p>
+            <a href="{% url 'odoo_db_manager:mapping_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i>
+                إنشاء تعيين جديد
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+function runSync(mappingId, mappingName) {
+    Swal.fire({
+        title: 'تشغيل المزامنة',
+        text: `هل تريد تشغيل مزامنة "${mappingName}"؟`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'نعم، ابدأ المزامنة',
+        cancelButtonText: 'إلغاء',
+        customClass: {
+            container: 'swal-rtl'
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // إظهار مؤشر التحميل
+            Swal.fire({
+                title: 'جاري تشغيل المزامنة...',
+                text: 'يرجى الانتظار',
+                icon: 'info',
+                allowOutsideClick: false,
+                showConfirmButton: false,
+                customClass: {
+                    container: 'swal-rtl'
+                }
+            });
+
+            // إرسال طلب المزامنة
+            fetch(`/odoo-db-manager/advanced-sync/api/run-sync/${mappingId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        title: 'تم بدء المزامنة!',
+                        text: `معرف المهمة: ${data.task_id}`,
+                        icon: 'success',
+                        customClass: {
+                            container: 'swal-rtl'
+                        }
+                    }).then(() => {
+                        // إعادة تحميل الصفحة لإظهار التحديثات
+                        window.location.reload();
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'خطأ!',
+                        text: data.error || 'حدث خطأ أثناء تشغيل المزامنة',
+                        icon: 'error',
+                        customClass: {
+                            container: 'swal-rtl'
+                        }
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire({
+                    title: 'خطأ!',
+                    text: 'حدث خطأ في الاتصال',
+                    icon: 'error',
+                    customClass: {
+                        container: 'swal-rtl'
+                    }
+                });
+            });
+        }
+    });
+}
+
+function deleteMapping(mappingId, mappingName) {
+    Swal.fire({
+        title: 'حذف التعيين',
+        text: `هل أنت متأكد من حذف تعيين "${mappingName}"؟`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'نعم، احذف',
+        cancelButtonText: 'إلغاء',
+        customClass: {
+            container: 'swal-rtl'
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // إرسال طلب الحذف
+            window.location.href = `/odoo-db-manager/advanced-sync/mappings/${mappingId}/delete/`;
+        }
+    });
+}
+
+// إضافة أنماط RTL لـ SweetAlert
+const style = document.createElement('style');
+style.textContent = `
+    .swal-rtl {
+        direction: rtl;
+        text-align: right;
+    }
+    .swal-rtl .swal2-title,
+    .swal-rtl .swal2-content {
+        text-align: right;
+    }
+    .badge {
+        display: inline-block;
+        padding: 0.25em 0.4em;
+        font-size: 75%;
+        font-weight: 700;
+        line-height: 1;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: baseline;
+        border-radius: 0.25rem;
+        margin: 2px;
+    }
+    .badge-success {
+        color: #fff;
+        background-color: #28a745;
+    }
+`;
+document.head.appendChild(style);
+</script>
+{% endblock %}

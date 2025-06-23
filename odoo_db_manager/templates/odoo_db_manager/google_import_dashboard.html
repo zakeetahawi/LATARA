@@ -1,0 +1,324 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'odoo_db_manager/css/style.css' %}">
+<style>
+    .import-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .import-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+    }
+    .feature-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        color: #007bff;
+    }
+    .stats-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px;
+    }
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 25px;
+        padding: 12px 30px;
+        font-weight: 600;
+    }
+    .btn-primary:hover {
+        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        transform: translateY(-2px);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- العنوان الرئيسي -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="display-6 mb-0">
+                <i class="fas fa-file-import text-primary"></i>
+                {{ title }}
+            </h1>
+            <p class="text-muted">استورد البيانات مباشرة من جداول Google Sheets</p>
+        </div>
+        <div>
+            <a href="{% url 'odoo_db_manager:dashboard' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> العودة
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- الميزات الرئيسية -->
+        <div class="col-lg-8">
+            <div class="row">
+                <!-- بدء الاستيراد -->
+                <div class="col-md-6 mb-4">
+                    <div class="card import-card h-100">
+                        <div class="card-body text-center">
+                            <i class="fas fa-upload feature-icon"></i>
+                            <h4 class="card-title">استيراد جديد</h4>
+                            <p class="card-text">
+                                ابدأ عملية استيراد جديدة من جداول Google Sheets
+                            </p>
+                            <a href="{% url 'odoo_db_manager:google_import_form' %}" 
+                               class="btn btn-primary">
+                                <i class="fas fa-plus"></i> بدء الاستيراد
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- إعدادات Google Sheets -->
+                <div class="col-md-6 mb-4">
+                    <div class="card import-card h-100">
+                        <div class="card-body text-center">
+                            <i class="fas fa-cogs feature-icon"></i>
+                            <h4 class="card-title">إعدادات Google Sheets</h4>
+                            <p class="card-text">
+                                إعداد وإدارة اتصال Google Sheets
+                            </p>
+                            <a href="{% url 'odoo_db_manager:google_sync_config' %}" 
+                               class="btn btn-outline-primary">
+                                <i class="fas fa-cog"></i> الإعدادات
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- سجل الاستيراد -->
+                <div class="col-md-6 mb-4">
+                    <div class="card import-card h-100">
+                        <div class="card-body text-center">
+                            <i class="fas fa-history feature-icon"></i>
+                            <h4 class="card-title">سجل الاستيراد</h4>
+                            <p class="card-text">
+                                عرض سجل عمليات الاستيراد السابقة
+                            </p>
+                            <a href="{% url 'odoo_db_manager:import_logs' %}" 
+                               class="btn btn-outline-info">
+                                <i class="fas fa-list"></i> عرض السجل
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- مساعدة -->
+                <div class="col-md-6 mb-4">
+                    <div class="card import-card h-100">
+                        <div class="card-body text-center">
+                            <i class="fas fa-question-circle feature-icon"></i>
+                            <h4 class="card-title">مساعدة ودليل الاستخدام</h4>
+                            <p class="card-text">
+                                تعلم كيفية استخدام نظام الاستيراد
+                            </p>
+                            <button class="btn btn-outline-success" data-bs-toggle="modal" 
+                                    data-bs-target="#helpModal">
+                                <i class="fas fa-book"></i> دليل الاستخدام
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- زر الاستيراد الشامل -->
+                <div class="col-12 mb-4">
+                    <div class="card import-card h-100 bg-warning bg-opacity-10 border-warning">
+                        <div class="card-body text-center">
+                            <i class="fas fa-database feature-icon text-warning"></i>
+                            <h4 class="card-title">استيراد شامل لكل الصفحات</h4>
+                            <p class="card-text">
+                                استيراد جميع البيانات من كل الصفحات المدعومة في جدول Google بنقرة واحدة
+                            </p>
+                            <form method="post" action="{% url 'odoo_db_manager:google_import_all' %}" style="display:inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-warning">
+                                    <i class="fas fa-cloud-download-alt"></i> استيراد شامل
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- الشريط الجانبي -->
+        <div class="col-lg-4">
+            <!-- إحصائيات سريعة -->
+            <div class="card stats-card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-chart-bar"></i>
+                        إحصائيات سريعة
+                    </h5>
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <h3>{{ recent_imports|length }}</h3>
+                            <small>عمليات حديثة</small>
+                        </div>
+                        <div class="col-6">
+                            <h3>
+                                {% if recent_imports %}
+                                    {{ recent_imports.0.imported_records|add:recent_imports.0.updated_records }}
+                                {% else %}
+                                    0
+                                {% endif %}
+                            </h3>
+                            <small>آخر استيراد</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- عمليات الاستيراد الحديثة -->
+            {% if recent_imports %}
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-clock"></i>
+                        آخر عمليات الاستيراد
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% for import_log in recent_imports %}
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <small class="text-muted">{{ import_log.sheet_name }}</small>
+                            <br>
+                            <span class="badge {% if import_log.status == 'success' %}bg-success{% elif import_log.status == 'partial' %}bg-warning{% else %}bg-danger{% endif %}">
+                                {{ import_log.get_status_display }}
+                            </span>
+                        </div>
+                        <div class="text-end">
+                            <small class="text-muted">{{ import_log.created_at|date:"M d, H:i" }}</small>
+                            <br>
+                            <small class="text-success">{{ import_log.imported_records|add:import_log.updated_records }} سجل</small>
+                        </div>
+                    </div>
+                    {% if not forloop.last %}<hr>{% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- نافذة المساعدة -->
+<div class="modal fade" id="helpModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-book"></i>
+                    دليل استخدام نظام الاستيراد
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="accordion" id="helpAccordion">
+                    <!-- خطوات الإعداد -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="setupHeading">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" 
+                                    data-bs-target="#setupCollapse">
+                                1. إعداد Google Sheets
+                            </button>
+                        </h2>
+                        <div id="setupCollapse" class="accordion-collapse collapse show" 
+                             data-bs-parent="#helpAccordion">
+                            <div class="accordion-body">
+                                <ol>
+                                    <li>قم بإنشاء مشروع في Google Cloud Console</li>
+                                    <li>فعّل Google Sheets API</li>
+                                    <li>أنشئ حساب خدمة وحمّل ملف JSON</li>
+                                    <li>شارك جدول البيانات مع البريد الإلكتروني لحساب الخدمة</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- تنسيق البيانات -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="formatHeading">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                                    data-bs-target="#formatCollapse">
+                                2. تنسيق البيانات
+                            </button>
+                        </h2>
+                        <div id="formatCollapse" class="accordion-collapse collapse" 
+                             data-bs-parent="#helpAccordion">
+                            <div class="accordion-body">
+                                <h6>للعملاء:</h6>
+                                <ul>
+                                    <li><strong>الاسم</strong> (مطلوب)</li>
+                                    <li><strong>رقم الهاتف</strong> (مطلوب)</li>
+                                    <li><strong>البريد الإلكتروني</strong> (اختياري)</li>
+                                    <li><strong>العنوان</strong> (اختياري)</li>
+                                </ul>
+                                <div class="alert alert-info">
+                                    <small>
+                                        <i class="fas fa-info-circle"></i>
+                                        تأكد من أن الصف الأول يحتوي على عناوين الأعمدة
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- عملية الاستيراد -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="importHeading">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                                    data-bs-target="#importCollapse">
+                                3. عملية الاستيراد
+                            </button>
+                        </h2>
+                        <div id="importCollapse" class="accordion-collapse collapse" 
+                             data-bs-parent="#helpAccordion">
+                            <div class="accordion-body">
+                                <ol>
+                                    <li>اختر الصفحة من القائمة المنسدلة</li>
+                                    <li>حدد ما إذا كنت تريد استيراد جميع البيانات أم نطاق محدد</li>
+                                    <li>اختر ما إذا كنت تريد حذف البيانات الموجودة</li>
+                                    <li>اضغط على "معاينة" لعرض البيانات</li>
+                                    <li>اضغط على "استيراد" لتنفيذ العملية</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // تأثيرات الحركة للبطاقات
+    const cards = document.querySelectorAll('.import-card');
+    cards.forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-5px)';
+        });
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+        });
+    });
+});
+</script>
+{% endblock %}

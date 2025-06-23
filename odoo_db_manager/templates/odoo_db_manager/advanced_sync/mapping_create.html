@@ -1,0 +1,1040 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}إنشاء تعيين جديد{% endblock %}
+
+{% block extra_css %}
+<meta charset="UTF-8">
+<style>
+.step-indicator {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+}
+.step {
+    flex: 1;
+    text-align: center;
+    position: relative;
+}
+.step.active .step-number {
+    background-color: #007bff;
+    color: white;
+}
+.step.completed .step-number {
+    background-color: #28a745;
+    color: white;
+}
+.step-number {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #e9ecef;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.5rem;
+}
+.step-line {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    width: 100%;
+    height: 2px;
+    background-color: #e9ecef;
+    z-index: -1;
+}
+.step.completed .step-line {
+    background-color: #28a745;
+}
+.column-mapping {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+.preview-table {
+    font-size: 0.875rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">
+                        <i class="fas fa-plus text-primary"></i>
+                        إنشاء تعيين جديد
+                    </h2>
+                    <p class="text-muted">إنشاء تعيين جديد لمزامنة Google Sheets مع النظام</p>
+                </div>
+                <div>
+                    <a href="{% url 'odoo_db_manager:advanced_sync_dashboard' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-right"></i> العودة
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step Indicator -->
+    <div class="step-indicator">
+        <div class="step active" id="step1">
+            <div class="step-number">1</div>
+            <div class="step-title">المعلومات الأساسية</div>
+            <div class="step-line"></div>
+        </div>
+        <div class="step" id="step2">
+            <div class="step-number">2</div>
+            <div class="step-title">اختيار الجدول</div>
+            <div class="step-line"></div>
+        </div>
+        <div class="step" id="step3">
+            <div class="step-number">3</div>
+            <div class="step-title">تعيين الأعمدة</div>
+            <div class="step-line"></div>
+        </div>
+        <div class="step" id="step4">
+            <div class="step-number">4</div>
+            <div class="step-title">الإعدادات</div>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <form method="post" id="mappingForm">
+        {% csrf_token %}
+
+        <!-- Step 1: Basic Information -->
+        <div class="step-content" id="step1-content">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">المعلومات الأساسية</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">اسم التعيين *</label>
+                                <input type="text" class="form-control" id="name" name="name" required>
+                                <div class="form-text">اسم وصفي للتعيين</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="spreadsheet_id" class="form-label">معرف جدول البيانات *</label>
+                                <input type="text" class="form-control" id="spreadsheet_id" name="spreadsheet_id" required onchange="loadSheetsFromSpreadsheet()">
+                                <div class="form-text">معرف Google Sheets من الرابط</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Sheet Selection -->
+        <div class="step-content d-none" id="step2-content">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">اختيار الجدول والإعدادات</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="sheet_name" class="form-label">اسم الصفحة *</label>
+                                <select class="form-select" id="sheet_name" name="sheet_name" required>
+                                    <option value="">اختر الصفحة...</option>
+                                    {% for sheet in available_sheets %}
+                                    <option value="{{ sheet }}">{{ sheet }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="header_row" class="form-label">صف العناوين</label>
+                                <input type="number" class="form-control" id="header_row" name="header_row" value="1" min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="start_row" class="form-label">صف البداية</label>
+                                <input type="number" class="form-control" id="start_row" name="start_row" value="2" min="2">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Preview Button -->
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-info" id="previewBtn">
+                            <i class="fas fa-eye"></i> معاينة البيانات
+                        </button>
+                    </div>
+
+                    <!-- Preview Area -->
+                    <div id="previewArea" class="d-none">
+                        <h6>معاينة البيانات:</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm preview-table" id="previewTable">
+                                <thead></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- القيم الافتراضية للحقول المفقودة -->
+                    <div class="mt-4">
+                        <h6 class="text-warning">
+                            <i class="fas fa-database"></i>
+                            القيم الافتراضية للحقول المفقودة
+                        </h6>
+                        <small class="text-muted d-block mb-3">هذه القيم سيتم استخدامها عندما لا توجد بيانات مقابلة في جدول Google Sheets</small>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="default_customer_category" class="form-label">تصنيف العميل الافتراضي</label>
+                                    <select class="form-select" id="default_customer_category" name="default_customer_category">
+                                        <option value="">لا يوجد تصنيف افتراضي</option>
+                                        {% for category in customer_categories %}
+                                        <option value="{{ category.id }}">{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text">سيتم تعيين هذا التصنيف للعملاء الجدد إذا لم يكن محدد في الجدول</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="default_customer_type" class="form-label">نوع العميل الافتراضي</label>
+                                    <select class="form-select" id="default_customer_type" name="default_customer_type">
+                                        <option value="">لا يوجد نوع افتراضي</option>
+                                        <option value="retail">أفراد</option>
+                                        <option value="wholesale">جملة</option>
+                                        <option value="corporate">شركات</option>
+                                    </select>
+                                    <div class="form-text">سيتم تعيين هذا النوع للعملاء الجدد إذا لم يكن محدد في الجدول</div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="default_branch" class="form-label">الفرع الافتراضي</label>
+                                    <select class="form-select" id="default_branch" name="default_branch">
+                                        <option value="">لا يوجد فرع افتراضي</option>
+                                        {% for branch in branches %}
+                                        <option value="{{ branch.id }}">{{ branch.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text">سيتم تعيين هذا الفرع للعملاء والطلبات الجديدة إذا لم يكن محدد في الجدول</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="use_current_date_as_created" name="use_current_date_as_created" checked>
+                                        <label class="form-check-label" for="use_current_date_as_created">
+                                            استخدام التاريخ الحالي كتاريخ الإضافة
+                                        </label>
+                                        <div class="form-text">إذا لم يكن هناك تاريخ إضافة في الجدول، سيتم استخدام تاريخ المزامنة</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- إعدادات المزامنة -->
+                    <div class="mt-4">
+                        <h6 class="text-primary">
+                            <i class="fas fa-cogs"></i>
+                            إعدادات المزامنة
+                        </h6>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>إعدادات الإنشاء التلقائي</h6>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="auto_create_customers" name="auto_create_customers" checked>
+                                    <label class="form-check-label" for="auto_create_customers">
+                                        إنشاء العملاء تلقائياً
+                                    </label>
+                                </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="auto_create_orders" name="auto_create_orders" checked>
+                                    <label class="form-check-label" for="auto_create_orders">
+                                        إنشاء الطلبات تلقائياً
+                                    </label>
+                                </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="auto_create_inspections" name="auto_create_inspections">
+                                    <label class="form-check-label" for="auto_create_inspections">
+                                        إنشاء المعاينات تلقائياً
+                                    </label>
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="auto_create_installations" name="auto_create_installations">
+                                    <label class="form-check-label" for="auto_create_installations">
+                                        إنشاء التركيبات تلقائياً
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>إعدادات التحديث</h6>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="update_existing_customers" name="update_existing_customers" checked>
+                                    <label class="form-check-label" for="update_existing_customers">
+                                        تحديث العملاء الموجودين
+                                    </label>
+                                </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="update_existing_orders" name="update_existing_orders" checked>
+                                    <label class="form-check-label" for="update_existing_orders">
+                                        تحديث الطلبات الموجودة
+                                    </label>
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="enable_reverse_sync" name="enable_reverse_sync">
+                                    <label class="form-check-label" for="enable_reverse_sync">
+                                        تفعيل المزامنة العكسية
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Column Mapping -->
+        <div class="step-content d-none" id="step3-content">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">تعيين الأعمدة</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        قم بتعيين كل عمود من Google Sheets إلى الحقل المناسب في النظام
+                    </div>
+
+                    <div class="alert alert-warning d-none" id="duplicate-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>تنبيه:</strong> يوجد تعيين بالفعل لهذا الجدول والصفحة. سيتم تحديث التعيين الموجود بدلاً من إنشاء تعيين جديد.
+                    </div>
+
+                    <div id="columnMappings">
+                        <!-- سيتم ملء هذا القسم ديناميكياً -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 4: Review and Confirm -->
+        <div class="step-content d-none" id="step4-content">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">مراجعة وتأكيد التعيين</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        مراجعة أخيرة لإعدادات التعيين قبل الحفظ
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>معلومات أساسية</h6>
+                            <div class="mb-2">
+                                <strong>اسم التعيين:</strong>
+                                <span id="review-name"></span>
+                            </div>
+                            <div class="mb-2">
+                                <strong>معرف الجدول:</strong>
+                                <span id="review-spreadsheet-id"></span>
+                            </div>
+                            <div class="mb-2">
+                                <strong>اسم الصفحة:</strong>
+                                <span id="review-sheet-name"></span>
+                            </div>
+                            <div class="mb-2">
+                                <strong>صف العناوين:</strong>
+                                <span id="review-header-row"></span>
+                            </div>
+                            <div class="mb-2">
+                                <strong>صف البداية:</strong>
+                                <span id="review-start-row"></span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6>القيم الافتراضية</h6>
+                            <div class="mb-2">
+                                <strong>تصنيف العميل:</strong>
+                                <span id="review-customer-category"></span>
+                            </div>
+                            <div class="mb-2">
+                                <strong>نوع العميل:</strong>
+                                <span id="review-customer-type"></span>
+                            </div>
+                            <div class="mb-2">
+                                <strong>الفرع:</strong>
+                                <span id="review-branch"></span>
+                            </div>
+                            <div class="mb-2">
+                                <strong>تاريخ الإضافة:</strong>
+                                <span id="review-date-setting"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="row">
+                        <div class="col-12">
+                            <h6>تعيينات الأعمدة</h6>
+                            <div id="review-column-mappings" class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>عمود Google Sheets</th>
+                                            <th>حقل النظام</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="review-mappings-body">
+                                        <!-- سيتم ملؤها بواسطة JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between">
+                    <button type="button" class="btn btn-secondary" id="prevBtn" style="display: none;">
+                        <i class="fas fa-arrow-right"></i> السابق
+                    </button>
+                    <div>
+                        <button type="button" class="btn btn-primary" id="nextBtn">
+                            التالي <i class="fas fa-arrow-left"></i>
+                        </button>
+                        <button type="submit" class="btn btn-success d-none" id="submitBtn">
+                            <i class="fas fa-save"></i> حفظ التعيين
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentStep = 1;
+const totalSteps = 4;
+const fieldTypes = {{ field_types_json|safe }};
+
+// دالة لتنظيف النصوص العربية
+function cleanArabicText(text) {
+    if (!text) return '';
+    // إزالة الأحرف غير المرئية
+    return text.replace(/[\u200c\u200d\u200e\u200f\ufeff]/g, '').trim();
+}
+
+// دالة لإنشاء خيارات القائمة المنسدلة
+function getFieldOptionsHtml() {
+    const options = [
+        ['customer_name', 'اسم العميل'],
+        ['customer_phone', 'رقم هاتف العميل'],
+        ['customer_phone2', 'رقم الهاتف الثاني'],
+        ['customer_email', 'بريد العميل الإلكتروني'],
+        ['customer_address', 'عنوان العميل'],
+        ['order_number', 'رقم الطلب'],
+        ['invoice_number', 'رقم الفاتورة'],
+        ['contract_number', 'رقم العقد'],
+        ['order_date', 'تاريخ الطلب'],
+        ['order_type', 'نوع الطلب'],
+        ['order_status', 'حالة الطلب'],
+        ['tracking_status', 'حالة التتبع'],
+        ['total_amount', 'المبلغ الإجمالي'],
+        ['paid_amount', 'المبلغ المدفوع'],
+        ['delivery_type', 'نوع التسليم'],
+        ['delivery_address', 'عنوان التسليم'],
+        ['installation_status', 'حالة التركيب'],
+        ['inspection_date', 'تاريخ المعاينة'],
+        ['inspection_result', 'نتيجة المعاينة'],
+        ['notes', 'ملاحظات'],
+        ['branch', 'الفرع'],
+        ['salesperson', 'البائع'],
+        ['windows_count', 'عدد الشبابيك']
+    ];
+
+    return options.map(([value, label]) =>
+        `<option value="${value}">${label}</option>`
+    ).join('');
+}
+
+// Navigation
+document.getElementById('nextBtn').addEventListener('click', function() {
+    if (validateCurrentStep()) {
+        if (currentStep < totalSteps) {
+            currentStep++;
+            showStep(currentStep);
+
+            // Load column mappings when reaching step 3
+            if (currentStep === 3) {
+                loadColumnMappings();
+            }
+
+            // Load review data when reaching step 4
+            if (currentStep === 4) {
+                loadReviewData();
+            }
+        }
+    }
+});
+
+document.getElementById('prevBtn').addEventListener('click', function() {
+    if (currentStep > 1) {
+        currentStep--;
+        showStep(currentStep);
+    }
+});
+
+// Preview functionality
+document.getElementById('previewBtn').addEventListener('click', function() {
+    const spreadsheetId = document.getElementById('spreadsheet_id').value;
+    const sheetName = document.getElementById('sheet_name').value;
+    const headerRow = document.getElementById('header_row').value;
+    const startRow = document.getElementById('start_row').value;
+
+    if (!spreadsheetId || !sheetName) {
+        alert('يرجى إدخال معرف الجدول واختيار الصفحة أولاً');
+        return;
+    }
+
+    // Show loading
+    this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التحميل...';
+    this.disabled = true;
+
+    fetch(`{% url 'odoo_db_manager:preview_sheet_data' %}?spreadsheet_id=${spreadsheetId}&sheet_name=${sheetName}&header_row=${headerRow}&start_row=${startRow}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showPreview(data.headers, data.data);
+            } else {
+                alert('خطأ: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('حدث خطأ في جلب البيانات');
+        })
+        .finally(() => {
+            this.innerHTML = '<i class="fas fa-eye"></i> معاينة البيانات';
+            this.disabled = false;
+        });
+});
+
+function showStep(step) {
+    // Hide all steps
+    for (let i = 1; i <= totalSteps; i++) {
+        document.getElementById(`step${i}-content`).classList.add('d-none');
+        document.getElementById(`step${i}`).classList.remove('active', 'completed');
+    }
+
+    // Show current step
+    document.getElementById(`step${step}-content`).classList.remove('d-none');
+    document.getElementById(`step${step}`).classList.add('active');
+
+    // Mark previous steps as completed
+    for (let i = 1; i < step; i++) {
+        document.getElementById(`step${i}`).classList.add('completed');
+    }
+
+    // Update navigation buttons
+    document.getElementById('prevBtn').style.display = step > 1 ? 'block' : 'none';
+    document.getElementById('nextBtn').style.display = step < totalSteps ? 'block' : 'none';
+    document.getElementById('submitBtn').classList.toggle('d-none', step < totalSteps);
+}
+
+function validateCurrentStep() {
+    switch (currentStep) {
+        case 1:
+            const name = document.getElementById('name').value.trim();
+            const spreadsheetId = document.getElementById('spreadsheet_id').value.trim();
+            if (!name || !spreadsheetId) {
+                alert('يرجى إدخال جميع الحقول المطلوبة');
+                return false;
+            }
+            break;
+        case 2:
+            const sheetName = document.getElementById('sheet_name').value;
+            if (!sheetName) {
+                alert('يرجى اختيار الصفحة');
+                return false;
+            }
+            break;
+        case 3:
+            // Validate column mappings
+            const mappings = document.querySelectorAll('select[name^="column_"]');
+            let hasCustomerName = false;
+            for (let mapping of mappings) {
+                if (mapping.value === 'customer_name') {
+                    hasCustomerName = true;
+                    break;
+                }
+            }
+            if (!hasCustomerName) {
+                alert('يجب تعيين عمود "اسم العميل" على الأقل');
+                return false;
+            }
+            break;
+    }
+    return true;
+}
+
+function showPreview(headers, data) {
+    const previewArea = document.getElementById('previewArea');
+    const table = document.getElementById('previewTable');
+
+    // Build table headers
+    const thead = table.querySelector('thead');
+    thead.innerHTML = '';
+    const headerRow = document.createElement('tr');
+    headers.forEach(header => {
+        const th = document.createElement('th');
+        th.textContent = header;
+        headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+
+    // Build table body
+    const tbody = table.querySelector('tbody');
+    tbody.innerHTML = '';
+    data.forEach(row => {
+        const tr = document.createElement('tr');
+        row.forEach(cell => {
+            const td = document.createElement('td');
+            td.textContent = cell || '';
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+
+    previewArea.classList.remove('d-none');
+}
+
+function loadColumnMappings() {
+    const spreadsheetId = document.getElementById('spreadsheet_id').value;
+    const sheetName = document.getElementById('sheet_name').value;
+    const headerRow = document.getElementById('header_row').value;
+
+    // التحقق من وجود تعيين مكرر
+    checkForDuplicateMapping(spreadsheetId, sheetName);
+
+    fetch(`{% url 'odoo_db_manager:get_sheet_columns' %}?spreadsheet_id=${spreadsheetId}&sheet_name=${sheetName}&header_row=${headerRow}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                buildColumnMappings(data.headers);
+            } else {
+                alert('خطأ في جلب أعمدة الجدول: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('حدث خطأ في جلب أعمدة الجدول');
+        });
+}
+
+function checkForDuplicateMapping(spreadsheetId, sheetName) {
+    // هذه الدالة يمكن تطويرها لاحقاً للتحقق من الخادم
+    // حالياً نعتمد على التحقق في الخادم
+    console.log('التحقق من التعيينات المكررة...', spreadsheetId, sheetName);
+}
+
+function loadSheetsFromSpreadsheet() {
+    const spreadsheetId = document.getElementById('spreadsheet_id').value.trim();
+    const sheetSelect = document.getElementById('sheet_name');
+
+    if (!spreadsheetId) {
+        // إعادة تعيين القائمة إلى القيم الافتراضية
+        resetSheetOptions();
+        return;
+    }
+
+    // إظهار مؤشر التحميل
+    sheetSelect.innerHTML = '<option value="">جاري تحميل الصفحات...</option>';
+    sheetSelect.disabled = true;
+
+    // جلب قائمة الصفحات من الجدول المحدد
+    fetch(`{% url 'odoo_db_manager:get_sheets_by_id' %}?spreadsheet_id=${encodeURIComponent(spreadsheetId)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.sheets) {
+                // مسح الخيارات القديمة
+                sheetSelect.innerHTML = '<option value="">اختر اسم الصفحة</option>';
+
+                // إضافة الصفحات الجديدة
+                data.sheets.forEach(sheet => {
+                    const option = document.createElement('option');
+                    option.value = sheet;
+                    option.textContent = sheet;
+                    sheetSelect.appendChild(option);
+                });
+
+                sheetSelect.disabled = false;
+
+                // إظهار رسالة نجاح
+                showMessage(`تم تحميل ${data.sheets.length} صفحة من الجدول`, 'success');
+            } else {
+                // في حالة الفشل، استخدام القيم الافتراضية
+                resetSheetOptions();
+                showMessage(data.error || 'فشل في تحميل صفحات الجدول', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading sheets:', error);
+            resetSheetOptions();
+            showMessage('حدث خطأ في الاتصال بالخادم', 'error');
+        });
+}
+
+function resetSheetOptions() {
+    const sheetSelect = document.getElementById('sheet_name');
+    sheetSelect.innerHTML = `
+        <option value="">اختر اسم الصفحة</option>
+        {% for sheet in available_sheets %}
+        <option value="{{ sheet }}">{{ sheet }}</option>
+        {% endfor %}
+    `;
+    sheetSelect.disabled = false;
+}
+
+function showMessage(message, type) {
+    // إزالة الرسائل القديمة
+    const existingMessages = document.querySelectorAll('.dynamic-message');
+    existingMessages.forEach(msg => msg.remove());
+
+    // إنشاء رسالة جديدة
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const iconClass = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle';
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `alert ${alertClass} dynamic-message`;
+    messageDiv.innerHTML = `
+        <i class="fas ${iconClass}"></i>
+        ${message}
+    `;
+
+    // إضافة الرسالة بعد حقل معرف الجدول
+    const spreadsheetField = document.getElementById('spreadsheet_id').closest('.mb-3');
+    spreadsheetField.insertAdjacentElement('afterend', messageDiv);
+
+    // إزالة الرسالة بعد 5 ثوان
+    setTimeout(() => {
+        if (messageDiv.parentNode) {
+            messageDiv.remove();
+        }
+    }, 5000);
+}
+
+function buildColumnMappings(headers) {
+    const container = document.getElementById('columnMappings');
+    container.innerHTML = '';
+
+    headers.forEach((headerObj, index) => {
+        const div = document.createElement('div');
+        div.className = 'column-mapping';
+
+        // استخدام البيانات الجديدة مع الترجمة
+        const originalName = headerObj.original || headerObj;
+        const translatedName = headerObj.translated || headerObj;
+        const displayName = headerObj.display || headerObj;
+
+        div.innerHTML = `
+            <div class="row align-items-center">
+                <div class="col-md-4">
+                    <strong>العمود ${index + 1}:</strong><br>
+                    <span class="arabic-text text-primary" title="${originalName}">${translatedName}</span>
+                    ${originalName !== translatedName ? `<br><small class="text-muted">(${originalName})</small>` : ''}
+                </div>
+                <div class="col-md-6">
+                    <select class="form-select" name="column_${originalName}" data-original="${originalName}" data-index="${index}">
+                        <option value="ignore">تجاهل هذا العمود</option>
+                        <option value="customer_name">اسم العميل</option>
+                        <option value="customer_phone">رقم هاتف العميل</option>
+                        <option value="customer_phone2">رقم الهاتف الثاني</option>
+                        <option value="customer_email">بريد العميل الإلكتروني</option>
+                        <option value="customer_address">عنوان العميل</option>
+                        <option value="order_number">رقم الطلب</option>
+                        <option value="invoice_number">رقم الفاتورة</option>
+                        <option value="contract_number">رقم العقد</option>
+                        <option value="order_date">تاريخ الطلب</option>
+                        <option value="order_type">نوع الطلب</option>
+                        <option value="order_status">حالة الطلب</option>
+                        <option value="tracking_status">حالة التتبع</option>
+                        <option value="total_amount">المبلغ الإجمالي</option>
+                        <option value="paid_amount">المبلغ المدفوع</option>
+                        <option value="delivery_type">نوع التسليم</option>
+                        <option value="delivery_address">عنوان التسليم</option>
+                        <option value="installation_status">حالة التركيب</option>
+                        <option value="inspection_date">تاريخ المعاينة</option>
+                        <option value="inspection_result">نتيجة المعاينة</option>
+                        <option value="notes">ملاحظات</option>
+                        <option value="branch">الفرع</option>
+                        <option value="salesperson">البائع</option>
+                        <option value="windows_count">عدد الشبابيك</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="button" class="btn btn-sm btn-outline-info" onclick="autoDetectMapping('${index}', '${originalName}', '${translatedName}')">
+                        <i class="fas fa-magic"></i> تلقائي
+                    </button>
+                </div>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+// دالة لتنظيف اسم العمود
+function cleanColumnName(columnName) {
+    if (!columnName) return '';
+
+    // إزالة HTML entities
+    let cleaned = columnName.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
+    cleaned = cleaned.replace(/&([a-zA-Z]+);/g, (match, entity) => {
+        const entities = {
+            'amp': '&', 'lt': '<', 'gt': '>', 'quot': '"', 'apos': "'",
+            'nbsp': ' ', 'copy': '©', 'reg': '®'
+        };
+        return entities[entity] || match;
+    });
+
+    // إزالة الأحرف غير المرئية
+    cleaned = cleaned.replace(/[\u200c\u200d\u200e\u200f\ufeff]/g, '');
+
+    // تنظيف المسافات
+    cleaned = cleaned.trim().replace(/\s+/g, ' ');
+
+    return cleaned;
+}
+
+function autoDetectMapping(columnIndex, originalName, translatedName) {
+    const select = document.querySelector(`select[data-index="${columnIndex}"]`);
+    const header = originalName.toLowerCase();
+    const translatedHeader = (translatedName || '').toLowerCase();
+
+    // Auto-detection logic - فحص الاسم الأصلي والمترجم
+    if (header.includes('name') || translatedHeader.includes('اسم')) {
+        select.value = 'customer_name';
+    } else if (header.includes('phone') || translatedHeader.includes('هاتف') || header.includes('phone2')) {
+        select.value = 'customer_phone';
+    } else if (header.includes('email') || translatedHeader.includes('بريد') || translatedHeader.includes('إلكتروني')) {
+        select.value = 'customer_email';
+    } else if (header.includes('address') || translatedHeader.includes('عنوان')) {
+        select.value = 'customer_address';
+    } else if (header.includes('order') || translatedHeader.includes('طلب')) {
+        select.value = 'order_number';
+    } else if (header.includes('invoice') || translatedHeader.includes('فاتورة')) {
+        select.value = 'invoice_number';
+    } else if (header.includes('contract') || translatedHeader.includes('عقد')) {
+        select.value = 'contract_number';
+    } else if (header.includes('amount') || header.includes('total') || translatedHeader.includes('مبلغ') || translatedHeader.includes('إجمالي')) {
+        select.value = 'total_amount';
+    } else if (header.includes('paid') || translatedHeader.includes('مدفوع')) {
+        select.value = 'paid_amount';
+    } else if (header.includes('status') || translatedHeader.includes('حالة')) {
+        select.value = 'order_status';
+    } else if (header.includes('notes') || translatedHeader.includes('ملاحظات')) {
+        select.value = 'notes';
+    } else if (header.includes('branch') || translatedHeader.includes('فرع')) {
+        select.value = 'branch';
+    } else if (header.includes('salesperson') || header.includes('sales') || translatedHeader.includes('بائع')) {
+        select.value = 'salesperson';
+    } else if (header.includes('type') || translatedHeader.includes('نوع')) {
+        select.value = 'order_type';
+    } else if (header.includes('date') || header.includes('created') || translatedHeader.includes('تاريخ')) {
+        select.value = 'order_date';
+    }
+}
+
+function loadReviewData() {
+    console.log('Loading review data...');
+
+    // ملء بيانات المراجعة الأساسية
+    const nameElement = document.getElementById('review-name');
+    const spreadsheetElement = document.getElementById('review-spreadsheet-id');
+    const sheetElement = document.getElementById('review-sheet-name');
+    const headerElement = document.getElementById('review-header-row');
+    const startElement = document.getElementById('review-start-row');
+
+    if (nameElement) nameElement.textContent = document.getElementById('name')?.value || 'غير محدد';
+    if (spreadsheetElement) spreadsheetElement.textContent = document.getElementById('spreadsheet_id')?.value || 'غير محدد';
+    if (sheetElement) sheetElement.textContent = document.getElementById('sheet_name')?.value || 'غير محدد';
+    if (headerElement) headerElement.textContent = document.getElementById('header_row')?.value || '1';
+    if (startElement) startElement.textContent = document.getElementById('start_row')?.value || '2';
+
+    // القيم الافتراضية
+    const categoryElement = document.getElementById('review-customer-category');
+    const typeElement = document.getElementById('review-customer-type');
+    const branchElement = document.getElementById('review-branch');
+    const dateElement = document.getElementById('review-date-setting');
+
+    if (categoryElement) {
+        const categorySelect = document.getElementById('default_customer_category');
+        const categoryText = categorySelect?.selectedOptions[0]?.text || 'لا يوجد تصنيف افتراضي';
+        categoryElement.textContent = categoryText;
+    }
+
+    if (typeElement) {
+        const typeSelect = document.getElementById('default_customer_type');
+        const typeText = typeSelect?.selectedOptions[0]?.text || 'لا يوجد نوع افتراضي';
+        typeElement.textContent = typeText;
+    }
+
+    if (branchElement) {
+        const branchSelect = document.getElementById('default_branch');
+        const branchText = branchSelect?.selectedOptions[0]?.text || 'لا يوجد فرع افتراضي';
+        branchElement.textContent = branchText;
+    }
+
+    if (dateElement) {
+        const useCurrentDate = document.getElementById('use_current_date_as_created')?.checked;
+        dateElement.textContent = useCurrentDate ? 'استخدام التاريخ الحالي' : 'من الجدول';
+    }
+
+    // إعدادات المزامنة
+    loadSyncSettings();
+
+    // تعيينات الأعمدة
+    loadColumnMappingsReview();
+}
+
+function loadSyncSettings() {
+    // تحقق من عدم وجود إعدادات مزامنة مضافة مسبقاً
+    if (document.querySelector('#step4-content .sync-settings-review')) {
+        return; // موجودة بالفعل
+    }
+
+    // إضافة قسم إعدادات المزامنة إلى المراجعة
+    const syncSettingsHtml = `
+        <div class="col-12 mt-3 sync-settings-review">
+            <h6>إعدادات المزامنة</h6>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-2">
+                        <strong>إنشاء العملاء تلقائياً:</strong>
+                        <span class="badge ${document.getElementById('auto_create_customers')?.checked ? 'bg-success' : 'bg-secondary'}">
+                            ${document.getElementById('auto_create_customers')?.checked ? 'مفعل' : 'معطل'}
+                        </span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>إنشاء الطلبات تلقائياً:</strong>
+                        <span class="badge ${document.getElementById('auto_create_orders')?.checked ? 'bg-success' : 'bg-secondary'}">
+                            ${document.getElementById('auto_create_orders')?.checked ? 'مفعل' : 'معطل'}
+                        </span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>إنشاء المعاينات تلقائياً:</strong>
+                        <span class="badge ${document.getElementById('auto_create_inspections')?.checked ? 'bg-success' : 'bg-secondary'}">
+                            ${document.getElementById('auto_create_inspections')?.checked ? 'مفعل' : 'معطل'}
+                        </span>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-2">
+                        <strong>تحديث العملاء الموجودين:</strong>
+                        <span class="badge ${document.getElementById('update_existing_customers')?.checked ? 'bg-success' : 'bg-secondary'}">
+                            ${document.getElementById('update_existing_customers')?.checked ? 'مفعل' : 'معطل'}
+                        </span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>تحديث الطلبات الموجودة:</strong>
+                        <span class="badge ${document.getElementById('update_existing_orders')?.checked ? 'bg-success' : 'bg-secondary'}">
+                            ${document.getElementById('update_existing_orders')?.checked ? 'مفعل' : 'معطل'}
+                        </span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>المزامنة العكسية:</strong>
+                        <span class="badge ${document.getElementById('enable_reverse_sync')?.checked ? 'bg-success' : 'bg-secondary'}">
+                            ${document.getElementById('enable_reverse_sync')?.checked ? 'مفعل' : 'معطل'}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // إضافة إعدادات المزامنة بعد القيم الافتراضية
+    const defaultsRow = document.querySelector('#step4-content .row');
+    if (defaultsRow) {
+        defaultsRow.insertAdjacentHTML('afterend', syncSettingsHtml);
+    }
+}
+
+function loadColumnMappingsReview() {
+    const mappingsBody = document.getElementById('review-mappings-body');
+    if (!mappingsBody) {
+        console.log('Mappings body not found');
+        return;
+    }
+
+    mappingsBody.innerHTML = '';
+
+    // البحث عن تعيينات الأعمدة
+    const mappingSelects = document.querySelectorAll('select[name^="column_"]');
+    console.log('Found mapping selects:', mappingSelects.length);
+
+    let hasMapping = false;
+
+    mappingSelects.forEach((select, index) => {
+        if (select.value && select.value !== '') {
+            hasMapping = true;
+
+            // البحث عن اسم العمود
+            let columnName = 'عمود ' + (index + 1);
+
+            // محاولة العثور على اسم العمود من العنصر المجاور
+            const parentDiv = select.closest('.column-mapping, .row, .mb-3');
+            if (parentDiv) {
+                const nameElement = parentDiv.querySelector('.column-name, .fw-bold, strong, label');
+                if (nameElement) {
+                    columnName = nameElement.textContent.trim();
+                }
+            }
+
+            // اسم الحقل المختار
+            const fieldName = select.selectedOptions[0]?.text || select.value;
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${columnName}</td>
+                <td><span class="badge bg-primary">${fieldName}</span></td>
+            `;
+            mappingsBody.appendChild(row);
+        }
+    });
+
+    if (!hasMapping) {
+        const row = document.createElement('tr');
+        row.innerHTML = '<td colspan="2" class="text-center text-muted">لم يتم تعيين أي أعمدة بعد</td>';
+        mappingsBody.appendChild(row);
+    }
+
+    console.log('Loaded', mappingsBody.children.length, 'mapping rows');
+}
+
+// Initialize
+showStep(1);
+</script>
+{% endblock %}

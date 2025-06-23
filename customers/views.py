@@ -63,7 +63,7 @@ def customer_list(request):
 
         if status:
             customers = customers.filter(status=status)
-            
+
         if branch:
             customers = customers.filter(branch=branch)
 
@@ -85,7 +85,7 @@ def customer_list(request):
     status_value = request.GET.get('status', '')
 
     branch_value = request.GET.get('branch', '')
-    
+
     context = {
         'page_obj': page_obj,
         'form': form,
@@ -119,10 +119,13 @@ def customer_detail(request, pk):
     orders = []
     for order in customer_orders:
         # Include service orders always
-        if order.order_type == 'service':
+        if hasattr(order, 'order_type') and order.order_type == 'service':
             orders.append(order)
         # Include product orders only if they have items
-        elif order.order_type == 'product' and order.items.exists():
+        elif hasattr(order, 'order_type') and order.order_type == 'product' and order.items.exists():
+            orders.append(order)
+        # Include all orders if order_type is not available (new structure)
+        elif not hasattr(order, 'order_type') or order.order_type is None:
             orders.append(order)
 
     # تحسين استعلام المعاينات باستخدام select_related
@@ -159,7 +162,7 @@ def customer_create(request):
             try:
                 customer = form.save(commit=False)
                 customer.created_by = request.user
-                
+
                 # تعيين الفرع
                 if request.user.branch.is_main_branch:
                     branch = form.cleaned_data.get('branch')
@@ -169,7 +172,7 @@ def customer_create(request):
                     customer.branch = branch
                 else:
                     customer.branch = request.user.branch
-                
+
                 customer.save()
                 messages.success(request, _('تم إضافة العميل {} بنجاح').format(customer.name))
                 return redirect('customers:customer_detail', pk=customer.pk)
@@ -179,7 +182,7 @@ def customer_create(request):
             print(f"Form errors: {form.errors}")  # للتشخيص
     else:
         form = CustomerForm(user=request.user)
-    
+
     context = {
         'form': form,
         'title': _('إضافة عميل جديد')
@@ -229,14 +232,14 @@ def customer_delete(request, pk):
     """View for deleting a customer with proper error handling."""
     customer = get_object_or_404(Customer, pk=pk)
 
-    # Check related records before attempting deletion 
+    # Check related records before attempting deletion
     has_related_records = False
     relations = {
         'inspections': _('معاينة'),
         'orders': _('طلب'),
         'installations': _('تركيب'),
     }
-    
+
     related_counts = {}
     for rel, label in relations.items():
         if hasattr(customer, rel):
@@ -258,7 +261,7 @@ def customer_delete(request, pk):
             )
             messages.error(request, msg)
             return redirect('customers:customer_detail', pk=customer.pk)
-            
+
         try:
             customer.delete()
             messages.success(request, 'تم حذف العميل بنجاح.')
@@ -268,17 +271,17 @@ def customer_delete(request, pk):
             protected_objects = list(e.protected_objects)
             relations_found = {
                 'inspection': _('معاينات'),
-                'order': _('طلبات'), 
+                'order': _('طلبات'),
                 'installation': _('تركيبات')
             }
-            
+
             found_relations = [
                 rel_name
                 for model_name, rel_name in relations_found.items()
-                if any(obj._meta.model_name == model_name 
+                if any(obj._meta.model_name == model_name
                       for obj in protected_objects)
             ]
-            
+
             if found_relations:
                 records_msg = ' و'.join(found_relations)
                 msg = (

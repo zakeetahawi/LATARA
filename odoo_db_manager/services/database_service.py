@@ -212,7 +212,7 @@ class DatabaseService:
 
     def activate_database(self, database_id):
         """تنشيط قاعدة بيانات"""
-        # إلغاء تنشيط جميع قواعد البيانات
+        # إلغاء تنشيط جميع قواعد databases
         Database.objects.all().update(is_active=False)
 
         # تنشيط قاعدة البيانات المحددة
@@ -227,28 +227,34 @@ class DatabaseService:
 
     def _update_settings_file(self, database):
         """تحديث ملف إعدادات قاعدة البيانات"""
+        import json as _json  # استخدام اسم مختلف محليًا لتجنب أي تعارض
         # إنشاء إعدادات قاعدة البيانات
         if database:
+            connection_info = database.connection_info
+            if isinstance(connection_info, str):
+                try:
+                    connection_info = _json.loads(connection_info)
+                except Exception:
+                    connection_info = {}
+            elif connection_info is None:
+                connection_info = {}
             db_settings = {
                 'active_db': database.id,
                 'databases': {
                     str(database.id): {
                         'ENGINE': f"django.db.backends.{database.db_type}",
-                        **database.connection_info
+                        **connection_info
                     }
                 }
             }
         else:
-            # إذا لم يتم تحديد قاعدة بيانات، استخدم إعدادات فارغة
             db_settings = {
                 'active_db': None,
                 'databases': {}
             }
-
-        # حفظ الإعدادات في ملف
         settings_file = os.path.join(settings.BASE_DIR, 'db_settings.json')
         with open(settings_file, 'w') as f:
-            json.dump(db_settings, f, indent=4)
+            _json.dump(db_settings, f, indent=4)
 
     def discover_postgresql_databases(self):
         """اكتشاف قواعد البيانات الموجودة في PostgreSQL"""

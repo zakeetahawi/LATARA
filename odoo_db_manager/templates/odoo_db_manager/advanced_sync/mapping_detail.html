@@ -1,0 +1,648 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}تفاصيل التعيين - {{ mapping.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.mapping-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    margin-bottom: 2rem;
+}
+
+.mapping-header h1 {
+    margin: 0;
+    font-size: 2rem;
+}
+
+.mapping-header .subtitle {
+    opacity: 0.9;
+    margin-top: 0.5rem;
+}
+
+.info-card {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 1.5rem;
+}
+
+.info-card h5 {
+    color: #495057;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #f8f9fa;
+}
+
+.info-item:last-child {
+    border-bottom: none;
+}
+
+.info-label {
+    font-weight: 600;
+    color: #6c757d;
+}
+
+.info-value {
+    color: #495057;
+}
+
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.status-active {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-inactive {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.column-mappings {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.column-mapping-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    background: #f8f9fa;
+    border-radius: 0.25rem;
+}
+
+.arabic-text {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    direction: rtl;
+    text-align: right;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.recent-tasks {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.task-item {
+    padding: 1rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    margin-bottom: 0.75rem;
+    background: white;
+}
+
+.task-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.task-status {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.task-success {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.task-error {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.task-running {
+    background-color: #d1ecf1;
+    color: #0c5460;
+}
+
+.conflict-item {
+    padding: 0.75rem;
+    border: 1px solid #ffeaa7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+    background: #fffbf0;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="mapping-header">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h1 class="arabic-text">{{ mapping.name }}</h1>
+                <div class="subtitle">
+                    <i class="fas fa-table"></i>
+                    {{ mapping.sheet_name }} - {{ mapping.spreadsheet_id|truncatechars:20 }}
+                </div>
+            </div>
+            <div class="action-buttons">
+                <a href="{% url 'odoo_db_manager:mapping_list' %}" class="btn btn-light">
+                    <i class="fas fa-arrow-right"></i> العودة
+                </a>
+                {% if mapping.is_active %}
+                <button onclick="runSync({{ mapping.id }}, '{{ mapping.name }}')" class="btn btn-success">
+                    <i class="fas fa-sync-alt"></i> تشغيل المزامنة
+                </button>
+                {% endif %}
+                <button onclick="editMapping({{ mapping.id }})" class="btn btn-warning">
+                    <i class="fas fa-edit"></i> تعديل
+                </button>
+                <button onclick="deleteMapping({{ mapping.id }}, '{{ mapping.name }}')" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> حذف
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- معلومات التعيين -->
+        <div class="col-lg-6">
+            <div class="info-card">
+                <h5><i class="fas fa-info-circle text-primary"></i> معلومات التعيين</h5>
+
+                <div class="info-item">
+                    <span class="info-label">الحالة</span>
+                    <span class="info-value">
+                        {% if mapping.is_active %}
+                            <span class="status-badge status-active">
+                                <i class="fas fa-check-circle"></i> نشط
+                            </span>
+                        {% else %}
+                            <span class="status-badge status-inactive">
+                                <i class="fas fa-pause-circle"></i> غير نشط
+                            </span>
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">معرف الجدول</span>
+                    <span class="info-value">{{ mapping.spreadsheet_id|truncatechars:30 }}</span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">اسم الصفحة</span>
+                    <span class="info-value arabic-text">{{ mapping.sheet_name }}</span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">صف العناوين</span>
+                    <span class="info-value">{{ mapping.header_row }}</span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">صف البداية</span>
+                    <span class="info-value">{{ mapping.start_row }}</span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">تاريخ الإنشاء</span>
+                    <span class="info-value">{{ mapping.created_at|date:"Y-m-d H:i" }}</span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">آخر مزامنة</span>
+                    <span class="info-value">
+                        {% if mapping.last_sync %}
+                            {{ mapping.last_sync|date:"Y-m-d H:i" }}
+                        {% else %}
+                            لم تتم المزامنة بعد
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">أنشئ بواسطة</span>
+                    <span class="info-value">{{ mapping.created_by.username }}</span>
+                </div>
+            </div>
+
+            <!-- إعدادات المزامنة -->
+            <div class="info-card">
+                <h5><i class="fas fa-cogs text-primary"></i> إعدادات المزامنة</h5>
+
+                <div class="info-item">
+                    <span class="info-label">إنشاء عملاء تلقائياً</span>
+                    <span class="info-value">
+                        {% if mapping.auto_create_customers %}
+                            <i class="fas fa-check text-success"></i> نعم
+                        {% else %}
+                            <i class="fas fa-times text-danger"></i> لا
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">إنشاء طلبات تلقائياً</span>
+                    <span class="info-value">
+                        {% if mapping.auto_create_orders %}
+                            <i class="fas fa-check text-success"></i> نعم
+                        {% else %}
+                            <i class="fas fa-times text-danger"></i> لا
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">تحديث العملاء الموجودين</span>
+                    <span class="info-value">
+                        {% if mapping.update_existing_customers %}
+                            <i class="fas fa-check text-success"></i> نعم
+                        {% else %}
+                            <i class="fas fa-times text-danger"></i> لا
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">تحديث الطلبات الموجودة</span>
+                    <span class="info-value">
+                        {% if mapping.update_existing_orders %}
+                            <i class="fas fa-check text-success"></i> نعم
+                        {% else %}
+                            <i class="fas fa-times text-danger"></i> لا
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">المزامنة العكسية</span>
+                    <span class="info-value">
+                        {% if mapping.enable_reverse_sync %}
+                            <i class="fas fa-check text-success"></i> مفعلة
+                        {% else %}
+                            <i class="fas fa-times text-danger"></i> معطلة
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- تعيينات الأعمدة -->
+        <div class="col-lg-6">
+            {% if mapping.column_mappings %}
+            <div class="info-card">
+                <h5><i class="fas fa-columns text-primary"></i> تعيينات الأعمدة ({{ mapping.column_mappings|length }})</h5>
+                <div class="column-mappings">
+                    {% for column, field_type in mapping.get_clean_column_mappings.items %}
+                    <div class="column-mapping-item">
+                        <span class="arabic-text" title="{{ column }}">{{ column|truncatechars:25 }}</span>
+                        <span class="text-muted">{{ field_type }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="mt-3">
+                    <button onclick="updateColumnMappings({{ mapping.id }})" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-edit"></i> تحديث التعيينات
+                    </button>
+                </div>
+            </div>
+            {% else %}
+            <div class="info-card">
+                <h5><i class="fas fa-columns text-warning"></i> تعيينات الأعمدة</h5>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    لم يتم تعيين أعمدة بعد. يرجى تحديث التعيينات.
+                </div>
+                <button onclick="updateColumnMappings({{ mapping.id }})" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> إضافة تعيينات الأعمدة
+                </button>
+            </div>
+            {% endif %}
+
+            <!-- الجدولة -->
+            {% if schedule %}
+            <div class="info-card">
+                <h5><i class="fas fa-clock text-primary"></i> جدولة المزامنة</h5>
+
+                <div class="info-item">
+                    <span class="info-label">التكرار</span>
+                    <span class="info-value">{{ schedule.get_frequency_display }}</span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">الحالة</span>
+                    <span class="info-value">
+                        {% if schedule.is_active %}
+                            <span class="status-badge status-active">نشط</span>
+                        {% else %}
+                            <span class="status-badge status-inactive">معطل</span>
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">آخر تشغيل</span>
+                    <span class="info-value">
+                        {% if schedule.last_run %}
+                            {{ schedule.last_run|date:"Y-m-d H:i" }}
+                        {% else %}
+                            لم يتم التشغيل بعد
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">التشغيل التالي</span>
+                    <span class="info-value">
+                        {% if schedule.next_run %}
+                            {{ schedule.next_run|date:"Y-m-d H:i" }}
+                        {% else %}
+                            غير محدد
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="mt-3">
+                    <a href="{% url 'odoo_db_manager:schedule_sync' mapping.id %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-edit"></i> تعديل الجدولة
+                    </a>
+                </div>
+            </div>
+            {% else %}
+            <div class="info-card">
+                <h5><i class="fas fa-clock text-warning"></i> جدولة المزامنة</h5>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    لم يتم جدولة المزامنة التلقائية.
+                </div>
+                <a href="{% url 'odoo_db_manager:schedule_sync' mapping.id %}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> إضافة جدولة
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- آخر المهام -->
+    {% if recent_tasks %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="info-card">
+                <h5><i class="fas fa-tasks text-primary"></i> آخر المهام</h5>
+                <div class="recent-tasks">
+                    {% for task in recent_tasks %}
+                    <div class="task-item">
+                        <div class="task-header">
+                            <div>
+                                <strong>مهمة #{{ task.id }}</strong>
+                                <small class="text-muted">{{ task.created_at|date:"Y-m-d H:i" }}</small>
+                            </div>
+                            <span class="task-status task-{{ task.status }}">
+                                {% if task.status == 'completed' %}
+                                    <i class="fas fa-check"></i> مكتملة
+                                {% elif task.status == 'failed' %}
+                                    <i class="fas fa-times"></i> فشلت
+                                {% elif task.status == 'running' %}
+                                    <i class="fas fa-spinner fa-spin"></i> قيد التشغيل
+                                {% else %}
+                                    <i class="fas fa-clock"></i> في الانتظار
+                                {% endif %}
+                            </span>
+                        </div>
+                        {% if task.result %}
+                        <div class="task-details">
+                            <small class="text-muted">{{ task.result|truncatechars:100 }}</small>
+                        </div>
+                        {% endif %}
+                        {% if task.error_message %}
+                        <div class="task-error">
+                            <small class="text-danger">{{ task.error_message|truncatechars:100 }}</small>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="mt-3">
+                    <a href="{% url 'odoo_db_manager:advanced_sync_dashboard' %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-list"></i> عرض جميع المهام
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- التعارضات المعلقة -->
+    {% if pending_conflicts %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="info-card">
+                <h5><i class="fas fa-exclamation-triangle text-warning"></i> التعارضات المعلقة</h5>
+                {% for conflict in pending_conflicts %}
+                <div class="conflict-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>تعارض #{{ conflict.id }}</strong>
+                            <small class="text-muted">{{ conflict.created_at|date:"Y-m-d H:i" }}</small>
+                        </div>
+                        <button onclick="resolveConflict({{ conflict.id }})" class="btn btn-sm btn-warning">
+                            <i class="fas fa-tools"></i> حل التعارض
+                        </button>
+                    </div>
+                    <div class="mt-2">
+                        <small>{{ conflict.description|truncatechars:150 }}</small>
+                    </div>
+                </div>
+                {% endfor %}
+                <div class="mt-3">
+                    <a href="{% url 'odoo_db_manager:conflict_list' %}" class="btn btn-sm btn-outline-warning">
+                        <i class="fas fa-list"></i> عرض جميع التعارضات
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+function runSync(mappingId, mappingName) {
+    Swal.fire({
+        title: 'تشغيل المزامنة',
+        text: `هل تريد تشغيل مزامنة "${mappingName}"؟`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'نعم، ابدأ المزامنة',
+        cancelButtonText: 'إلغاء',
+        customClass: {
+            container: 'swal-rtl'
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // إظهار مؤشر التحميل
+            Swal.fire({
+                title: 'جاري تشغيل المزامنة...',
+                text: 'يرجى الانتظار',
+                icon: 'info',
+                allowOutsideClick: false,
+                showConfirmButton: false,
+                customClass: {
+                    container: 'swal-rtl'
+                }
+            });
+
+            // إرسال طلب المزامنة
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+            if (!csrfToken) {
+                Swal.fire({
+                    title: 'خطأ!',
+                    text: 'لم يتم العثور على رمز الأمان',
+                    icon: 'error',
+                    customClass: {
+                        container: 'swal-rtl'
+                    }
+                });
+                return;
+            }
+
+            console.log('Starting sync for mapping:', mappingId);
+
+            fetch(`/odoo-db-manager/advanced-sync/mappings/${mappingId}/sync/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken.value,
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Response data:', data);
+                if (data.success) {
+                    Swal.fire({
+                        title: 'تم بدء المزامنة!',
+                        text: `تم بدء مهمة المزامنة بنجاح. معرف المهمة: ${data.task_id}`,
+                        icon: 'success',
+                        customClass: {
+                            container: 'swal-rtl'
+                        }
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'خطأ!',
+                        text: data.error || 'حدث خطأ في تشغيل المزامنة',
+                        icon: 'error',
+                        customClass: {
+                            container: 'swal-rtl'
+                        }
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Fetch error:', error);
+                Swal.fire({
+                    title: 'خطأ في الاتصال!',
+                    text: `حدث خطأ: ${error.message}`,
+                    icon: 'error',
+                    customClass: {
+                        container: 'swal-rtl'
+                    }
+                });
+            });
+        }
+    });
+}
+
+function editMapping(mappingId) {
+    // فتح صفحة تعديل التعيين
+    window.location.href = `/odoo-db-manager/advanced-sync/mappings/${mappingId}/edit/`;
+}
+
+function deleteMapping(mappingId, mappingName) {
+    Swal.fire({
+        title: 'حذف التعيين',
+        text: `هل أنت متأكد من حذف تعيين "${mappingName}"؟`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'نعم، احذف',
+        cancelButtonText: 'إلغاء',
+        customClass: {
+            container: 'swal-rtl'
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = `/odoo-db-manager/advanced-sync/mappings/${mappingId}/delete/`;
+        }
+    });
+}
+
+function updateColumnMappings(mappingId) {
+    // فتح صفحة تحديث تعيينات الأعمدة
+    window.location.href = `/odoo-db-manager/advanced-sync/mappings/${mappingId}/update-columns/`;
+}
+
+function resolveConflict(conflictId) {
+    // يمكن إضافة صفحة حل التعارضات لاحقاً
+    Swal.fire({
+        title: 'حل التعارض',
+        text: 'ميزة حل التعارضات ستكون متاحة قريباً',
+        icon: 'info',
+        customClass: {
+            container: 'swal-rtl'
+        }
+    });
+}
+
+// إضافة أنماط RTL لـ SweetAlert
+const style = document.createElement('style');
+style.textContent = `
+    .swal-rtl {
+        direction: rtl;
+        text-align: right;
+    }
+    .swal-rtl .swal2-title,
+    .swal-rtl .swal2-content {
+        text-align: right;
+    }
+`;
+document.head.appendChild(style);
+</script>
+{% endblock %}

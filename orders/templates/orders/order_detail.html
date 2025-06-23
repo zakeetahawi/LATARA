@@ -80,7 +80,13 @@
                         </tr>
                         <tr>
                             <th>تم الإنشاء بواسطة</th>
-                            <td>{{ order.created_by.get_full_name|default:order.created_by.username }}</td>
+                            <td>
+                                {% if order.created_by %}
+                                    {{ order.created_by.get_full_name|default:order.created_by.username }}
+                                {% else %}
+                                    غير محدد
+                                {% endif %}
+                            </td>
                         </tr>
                         <tr>
                             <th>تاريخ الإنشاء</th>
@@ -464,7 +470,13 @@
                             <td>{{ payment.payment_date|date:"Y-m-d H:i" }}</td>
                             <td>{{ payment.reference_number|default:"-" }}</td>
                             <td>{{ payment.notes|default:"-" }}</td>
-                            <td>{{ payment.created_by.get_full_name|default:payment.created_by.username }}</td>
+                            <td>
+                                {% if payment.created_by %}
+                                    {{ payment.created_by.get_full_name|default:payment.created_by.username }}
+                                {% else %}
+                                    غير محدد
+                                {% endif %}
+                            </td>
                             <td>
                                 <a href="{% url 'orders:payment_delete' payment.pk %}" class="btn btn-sm btn-danger">
                                     <i class="fas fa-trash"></i>

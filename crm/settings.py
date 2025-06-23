@@ -437,7 +437,7 @@ SESSION_CLEANUP_SCHEDULE = {
 
 # إعدادات تحسين الأداء
 # تقليل عدد الاستعلامات المسموح بها في صفحة واحدة
-DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
 
 # تعطيل التسجيل المفصل في الإنتاج
 if not DEBUG:

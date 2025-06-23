@@ -26,23 +26,23 @@
     .btn-link:hover i {
         filter: brightness(1.2);
     }
-    
+
     /* تحسين عرض SweetAlert */
     .swal-wide {
         width: 600px !important;
     }
-    
+
     .swal-wide .swal2-html-container {
         text-align: right;
         direction: rtl;
     }
-    
+
     .swal-wide .alert {
         margin-bottom: 15px;
         padding: 12px;
         border-radius: 6px;
     }
-    
+
     .swal-wide ul {
         list-style: none;
         padding-right: 20px;
@@ -77,9 +77,11 @@
                 <i class="fab fa-google-drive"></i> إعدادات Google Drive
             </a>            <a href="{% url 'odoo_db_manager:google_sync' %}" class="btn btn-outline-success">
                 <i class="fas fa-sync-alt"></i> مزامنة غوغل
-            </a>
-            <a href="{% url 'odoo_db_manager:import_dashboard' %}" class="btn btn-outline-info">
+            </a>            <a href="{% url 'odoo_db_manager:google_import_dashboard' %}" class="btn btn-outline-info">
                 <i class="fas fa-file-import"></i> استيراد البيانات
+            </a>
+            <a href="{% url 'odoo_db_manager:advanced_sync_dashboard' %}" class="btn btn-outline-warning">
+                <i class="fas fa-sync-alt"></i> المزامنة المتقدمة
             </a>
         </div>
     </div>
@@ -111,7 +113,7 @@
                             {% if db.is_active %}
                             <span class="badge bg-primary me-1">نشطة</span>
                             {% endif %}
-                            
+
                             {% if db.status %}
                             <span class="badge bg-success" title="متصلة">
                                 <i class="fas fa-plug"></i>
@@ -298,7 +300,7 @@
             html: `
                 <div style="text-align: right; direction: rtl;">
                     <p>تم تنشيط قاعدة البيانات <strong>{{ activated_db_name }}</strong> بنجاح.</p>
-                    
+
                     {% if created_default_user %}
                     <div class="alert alert-success mt-3">
                         <i class="fas fa-user-plus"></i>
@@ -309,7 +311,7 @@
                         </ul>
                     </div>
                     {% endif %}
-                    
+
                     <div class="alert alert-info mt-3">
                         <i class="fas fa-info-circle"></i>
                         يرجى إعادة تشغيل السيرفر لتطبيق التغييرات.
@@ -325,20 +327,20 @@
             }        });
     });
     {% endif %}
-    
+
     // دالة تأكيد تنشيط قاعدة البيانات باستخدام SweetAlert
     function confirmActivateDatabase(url, dbName) {
         console.log('confirmActivateDatabase called with:', url, dbName); // للتشخيص
-        
+
         // التحقق من وجود SweetAlert
         if (typeof Swal === 'undefined') {
             console.error('SweetAlert2 is not loaded!');
             alert('خطأ: SweetAlert2 غير محمل');
             return false;
         }
-        
+
         console.log('SweetAlert2 is loaded, showing confirmation dialog...');
-        
+
         Swal.fire({
             title: 'تنشيط قاعدة البيانات',
             html: `هل أنت متأكد من تنشيط قاعدة البيانات <strong>${dbName}</strong>؟<br><br>
@@ -360,7 +362,7 @@
         }).then((result) => {
             if (result.isConfirmed) {
                 console.log('User confirmed activation, sending request to:', url); // للتتبع
-                
+
                 // عرض مؤشر التحميل
                 Swal.fire({
                     title: 'جاري تنشيط قاعدة البيانات...',
@@ -369,7 +371,7 @@
                     didOpen: () => {
                         Swal.showLoading();
                     }                });
-                
+
                 // إرسال طلب AJAX للتنشيط
                 fetch(url, {
                     method: 'POST',
@@ -382,11 +384,11 @@
                 .then(response => {
                     console.log('Response status:', response.status);
                     console.log('Response headers:', response.headers);
-                    
+
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
-                    
+
                     // التحقق من Content-Type
                     const contentType = response.headers.get('content-type');
                     if (contentType && contentType.includes('application/json')) {
@@ -400,7 +402,7 @@
                 })
                 .then(data => {
                     console.log('Response data:', data); // للتتبع
-                    
+
                     // إخفاء مؤشر التحميل
                     Swal.close();
                       if (data.success) {
@@ -412,7 +414,7 @@
                                     تم تنشيط قاعدة البيانات "${data.database_name}" بنجاح!
                                 </div>
                         `;
-                        
+
                         if (data.created_default_user) {
                             htmlContent += `
                                 <div class="alert alert-info">
@@ -422,7 +424,7 @@
                                     كلمة المرور: <code>admin123</code>
                                 </div>
                             `;                        }
-                        
+
                         if (data.requires_restart) {
                             htmlContent += `
                                 <div class="alert alert-warning">
@@ -437,9 +439,9 @@
                                     تم تطبيق التغييرات مباشرة. يمكنك الآن استخدام قاعدة البيانات الجديدة.
                                 </div>
                             `;                        }
-                        
+
                         htmlContent += '</div>';
-                        
+
                         // عرض SweetAlert مع المحتوى المنسق
                         Swal.fire({
                             title: 'تم التنشيط بنجاح!',
@@ -486,7 +488,7 @@
                 });
             }
         });
-        
+
         return false; // منع السلوك الافتراضي للرابط
     }
 
@@ -530,7 +532,7 @@
                 .then(data => {
                     // إخفاء مؤشر التحميل
                     Swal.close();
-                    
+
                     if (data.success) {
                         // إعادة تحميل الصفحة لعرض قاعدة البيانات المسجلة حديثًا
                         location.reload();
@@ -591,7 +593,7 @@
         .then(data => {
             // إخفاء مؤشر التحميل
             Swal.close();
-            
+
             if (data.success) {
                 // إعادة تحميل الصفحة لتحديث حالة الاتصال
                 location.reload();

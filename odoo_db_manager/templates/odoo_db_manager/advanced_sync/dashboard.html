@@ -1,0 +1,294 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}لوحة تحكم المزامنة المتقدمة{% endblock %}
+
+{% block extra_css %}
+<style>
+.sync-card {
+    transition: transform 0.2s;
+}
+.sync-card:hover {
+    transform: translateY(-2px);
+}
+.status-badge {
+    font-size: 0.8rem;
+}
+.progress-mini {
+    height: 4px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">
+                        <i class="fas fa-sync-alt text-primary"></i>
+                        المزامنة المتقدمة مع Google Sheets
+                    </h2>
+                    <p class="text-muted">إدارة مزامنة البيانات بين النظام و Google Sheets</p>
+                </div>
+                <div>
+                    <a href="{% url 'odoo_db_manager:mapping_create' %}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> إنشاء تعيين جديد
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card sync-card border-primary">
+                <div class="card-body text-center">
+                    <div class="text-primary mb-2">
+                        <i class="fas fa-map fa-2x"></i>
+                    </div>
+                    <h4 class="mb-1">{{ total_mappings }}</h4>
+                    <p class="text-muted mb-0">إجمالي التعيينات</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card sync-card border-success">
+                <div class="card-body text-center">
+                    <div class="text-success mb-2">
+                        <i class="fas fa-check-circle fa-2x"></i>
+                    </div>
+                    <h4 class="mb-1">{{ active_mappings }}</h4>
+                    <p class="text-muted mb-0">التعيينات النشطة</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card sync-card border-info">
+                <div class="card-body text-center">
+                    <div class="text-info mb-2">
+                        <i class="fas fa-tasks fa-2x"></i>
+                    </div>
+                    <h4 class="mb-1">{{ total_tasks }}</h4>
+                    <p class="text-muted mb-0">إجمالي المهام</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card sync-card border-warning">
+                <div class="card-body text-center">
+                    <div class="text-warning mb-2">
+                        <i class="fas fa-exclamation-triangle fa-2x"></i>
+                    </div>
+                    <h4 class="mb-1">{{ pending_conflicts }}</h4>
+                    <p class="text-muted mb-0">التعارضات المعلقة</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Active Mappings -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-map text-primary"></i>
+                        التعيينات النشطة
+                    </h5>
+                    <a href="{% url 'odoo_db_manager:mapping_list' %}" class="btn btn-sm btn-outline-primary">
+                        عرض الكل
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if active_mappings_list %}
+                        {% for mapping in active_mappings_list %}
+                        <div class="d-flex justify-content-between align-items-center mb-3 p-2 border rounded">
+                            <div>
+                                <h6 class="mb-1">{{ mapping.name }}</h6>
+                                <small class="text-muted">{{ mapping.sheet_name }}</small>
+                            </div>
+                            <div class="text-end">
+                                {% if mapping.last_sync %}
+                                    <small class="text-success">
+                                        <i class="fas fa-check"></i>
+                                        {{ mapping.last_sync|timesince }} مضت
+                                    </small>
+                                {% else %}
+                                    <small class="text-warning">
+                                        <i class="fas fa-clock"></i>
+                                        لم تتم المزامنة بعد
+                                    </small>
+                                {% endif %}
+                                <br>
+                                <a href="{% url 'odoo_db_manager:mapping_detail' mapping.id %}" class="btn btn-sm btn-outline-primary">
+                                    تفاصيل
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-map fa-3x mb-3"></i>
+                            <p>لا توجد تعيينات نشطة</p>
+                            <a href="{% url 'odoo_db_manager:mapping_create' %}" class="btn btn-primary">
+                                إنشاء تعيين جديد
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Tasks -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history text-info"></i>
+                        آخر المهام
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_tasks %}
+                        {% for task in recent_tasks %}
+                        <div class="d-flex justify-content-between align-items-center mb-3 p-2 border rounded">
+                            <div>
+                                <h6 class="mb-1">{{ task.mapping.name }}</h6>
+                                <small class="text-muted">{{ task.get_task_type_display }}</small>
+                            </div>
+                            <div class="text-end">
+                                {% if task.status == 'completed' %}
+                                    <span class="badge bg-success status-badge">مكتمل</span>
+                                {% elif task.status == 'failed' %}
+                                    <span class="badge bg-danger status-badge">فشل</span>
+                                {% elif task.status == 'running' %}
+                                    <span class="badge bg-primary status-badge">قيد التنفيذ</span>
+                                {% else %}
+                                    <span class="badge bg-secondary status-badge">في الانتظار</span>
+                                {% endif %}
+                                <br>
+                                <small class="text-muted">{{ task.created_at|timesince }} مضت</small>
+                                <br>
+                                <a href="{% url 'odoo_db_manager:task_detail' task.id %}" class="btn btn-sm btn-outline-info">
+                                    تفاصيل
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-tasks fa-3x mb-3"></i>
+                            <p>لا توجد مهام</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scheduled Syncs -->
+    {% if scheduled_syncs %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calendar-alt text-warning"></i>
+                        المزامنة المجدولة
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for schedule in scheduled_syncs %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card border-warning">
+                                <div class="card-body">
+                                    <h6 class="card-title">{{ schedule.mapping.name }}</h6>
+                                    <p class="card-text">
+                                        <small class="text-muted">
+                                            كل {{ schedule.frequency_minutes }} دقيقة
+                                        </small>
+                                    </p>
+                                    {% if schedule.next_run %}
+                                        <p class="card-text">
+                                            <small class="text-info">
+                                                <i class="fas fa-clock"></i>
+                                                التشغيل القادم: {{ schedule.next_run|timeuntil }}
+                                            </small>
+                                        </p>
+                                    {% endif %}
+                                    <div class="d-flex justify-content-between">
+                                        <small class="text-success">
+                                            نجح: {{ schedule.successful_runs }}
+                                        </small>
+                                        <small class="text-danger">
+                                            فشل: {{ schedule.failed_runs }}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Quick Actions -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bolt text-warning"></i>
+                        إجراءات سريعة
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <a href="{% url 'odoo_db_manager:mapping_create' %}" class="btn btn-outline-primary w-100 mb-2">
+                                <i class="fas fa-plus"></i><br>
+                                إنشاء تعيين جديد
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="{% url 'odoo_db_manager:mapping_list' %}" class="btn btn-outline-info w-100 mb-2">
+                                <i class="fas fa-list"></i><br>
+                                إدارة التعيينات
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="{% url 'odoo_db_manager:conflict_list' %}" class="btn btn-outline-warning w-100 mb-2">
+                                <i class="fas fa-exclamation-triangle"></i><br>
+                                حل التعارضات
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="{% url 'odoo_db_manager:google_sync_config' %}" class="btn btn-outline-secondary w-100 mb-2">
+                                <i class="fas fa-cog"></i><br>
+                                إعدادات Google Sheets
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// تحديث الصفحة كل 30 ثانية لعرض آخر المعلومات
+setInterval(function() {
+    // يمكن إضافة AJAX لتحديث البيانات دون إعادة تحميل الصفحة
+}, 30000);
+</script>
+{% endblock %}

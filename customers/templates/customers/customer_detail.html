@@ -14,11 +14,11 @@
                     <div class="row align-items-center">
                         <div class="col-md-2 text-center">
                             {% if customer.image %}
-                            <img src="{{ customer.image.url }}" alt="{{ customer.name }}" 
-                                 class="img-fluid rounded-circle border border-3 border-primary" 
+                            <img src="{{ customer.image.url }}" alt="{{ customer.name }}"
+                                 class="img-fluid rounded-circle border border-3 border-primary"
                                  style="max-width: 120px; max-height: 120px;">
                             {% else %}
-                            <div class="bg-primary rounded-circle d-inline-flex align-items-center justify-content-center" 
+                            <div class="bg-primary rounded-circle d-inline-flex align-items-center justify-content-center"
                                  style="width: 120px; height: 120px;">
                                 <i class="fas fa-user fa-3x text-white"></i>
                             </div>
@@ -97,7 +97,7 @@
                 <div class="card-body">
                     {% if customer.image %}
                     <div class="text-center mb-3">
-                        <img src="{{ customer.image.url }}" alt="{{ customer.name }}" 
+                        <img src="{{ customer.image.url }}" alt="{{ customer.name }}"
                              class="img-fluid rounded-circle" style="max-width: 150px;">
                     </div>
                     {% endif %}                    <table class="table table-sm">
@@ -204,7 +204,7 @@
                     {% endif %}
                 </div>
             </div>
-            
+
             <!-- Customer General Notes -->
             {% if customer.notes %}
             <div class="card mb-4">
@@ -258,7 +258,12 @@
                             <div class="timeline-content">
                                 <p>{{ note.note }}</p>
                                 <small class="text-muted">
-                                    {% trans 'بواسطة' %}: {{ note.created_by.get_full_name }}
+                                    {% trans 'بواسطة' %}:
+                                    {% if note.created_by %}
+                                        {{ note.created_by.get_full_name|default:note.created_by.username }}
+                                    {% else %}
+                                        غير محدد
+                                    {% endif %}
                                 </small>
                             </div>
                         </div>
@@ -318,6 +323,23 @@
                                                 {% elif service_type == 'transport' %}
                                                     <span class="badge bg-dark">نقل</span>
                                                 {% elif service_type == 'tailoring' %}
+                                                    <span class="badge bg-success">تفصيل</span>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="badge bg-secondary">طلب</span>
+                                            {% for selected_type in order.selected_types %}
+                                                {% if selected_type == 'fabric' %}
+                                                    <span class="badge bg-primary">قماش</span>
+                                                {% elif selected_type == 'accessory' %}
+                                                    <span class="badge bg-info">إكسسوار</span>
+                                                {% elif selected_type == 'installation' %}
+                                                    <span class="badge bg-secondary">تركيب</span>
+                                                {% elif selected_type == 'inspection' %}
+                                                    <span class="badge bg-warning">معاينة</span>
+                                                {% elif selected_type == 'transport' %}
+                                                    <span class="badge bg-dark">نقل</span>
+                                                {% elif selected_type == 'tailoring' %}
                                                     <span class="badge bg-success">تفصيل</span>
                                                 {% endif %}
                                             {% endfor %}
@@ -455,17 +477,17 @@
     .card-header {
         border-bottom: 2px solid var(--primary);
     }
-    
+
     .card-title {
         font-size: 1.1rem;
         font-weight: 600;
     }
-    
+
     .card-text {
         white-space: pre-line;
         color: var(--dark);
     }
-    
+
     .text-muted {
         font-style: italic;
     }

@@ -290,7 +290,13 @@
                         <div class="list-group-item">
                             <div class="d-flex justify-content-between">
                                 <small class="text-muted">{{ note.created_at|date:"Y/m/d" }}</small>
-                                <small class="text-muted">{{ note.created_by.get_full_name }}</small>
+                                <small class="text-muted">
+                                    {% if note.created_by %}
+                                        {{ note.created_by.get_full_name|default:note.created_by.username }}
+                                    {% else %}
+                                        غير محدد
+                                    {% endif %}
+                                </small>
                             </div>
                             <p class="mb-0 mt-1">{{ note.note }}</p>
                         </div>
