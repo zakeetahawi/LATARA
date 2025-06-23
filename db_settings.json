@@ -3,11 +3,11 @@
     "databases": {
         "4": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": "test",
-            "USER": "postgres",
-            "PASSWORD": "5525",
             "HOST": "localhost",
-            "PORT": "5432"
+            "NAME": "test",
+            "PORT": "5432",
+            "USER": "postgres",
+            "PASSWORD": "5525"
         }
     }
 }

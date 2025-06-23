@@ -1,13 +1,13 @@
 /* Theme Variables - متغيرات الثيمات الموحدة */
 :root {
     /* Default Theme (Current brown theme) */
-    --primary: #8B735A;              /* اللون الأساسي - بني */
-    --secondary: #A67B5B;            /* اللون الثانوي - بني فاتح */
-    --accent: #5F4B32;               /* لون الإبراز - بني داكن */
-    --background: #FFFFFF;           /* لون الخلفية - أبيض */
-    --surface: #F8F8F8;              /* لون السطح - أبيض مائل للرمادي */
+    --primary: #0b5088;              /* اللون الأساسي - بني */
+    --secondary: #081868;            /* اللون الثانوي - بني فاتح */
+    --accent: #0b5088;               /* لون الإبراز - بني داكن */
+    --background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);  /* خلفية متدرجة رمادي إلى أبيض فاتح */
+    --surface: #F0F2F5;              /* لون السطح - رمادي فاتح */
     --card-bg: #FFFFFF;              /* خلفية البطاقات - أبيض */
-    --elevated-bg: #F5F5F5;          /* خلفية مرتفعة - أبيض فاتح */
+    --elevated-bg: #FBFCFD;          /* خلفية مرتفعة - أبيض مع لمسة رمادي */
     
     /* ألوان النصوص */
     --text-primary: #3D3427;         /* نص أساسي - بني داكن */
@@ -32,9 +32,8 @@
     --radius: 8px;
     --radius-large: 12px;
     --transition: all 0.3s ease;
-    
-    /* متغيرات توافق مع الكود القديم */
-    --light-bg: #E8DCCA;
+      /* متغيرات توافق مع الكود القديم */
+    --light-bg: #E0E3E7;              /* خلفية ثانوية رمادي أغمق متناسب مع التدرج */
     --dark-text: #3D3427;
     --alert: #C17817;
     --light-accent: #D2B48C;
@@ -661,7 +660,8 @@
 body {
     font-family: 'Cairo', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     color: var(--dark-text);
-    background-color: var(--light-bg);
+    background: var(--background);
+    min-height: 100vh;
 }
 
 /* Theme transition effects */
