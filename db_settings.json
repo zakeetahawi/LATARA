@@ -3,11 +3,11 @@
     "databases": {
         "3": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": "crm_system",
-            "USER": "postgres",
-            "PASSWORD": "5525",
             "HOST": "localhost",
-            "PORT": "5432"
+            "NAME": "crm_system",
+            "PORT": "5432",
+            "USER": "postgres",
+            "PASSWORD": "5525"
         }
     }
 }

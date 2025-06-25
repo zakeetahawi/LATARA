@@ -118,16 +118,16 @@ class GoogleSyncTaskAdmin(admin.ModelAdmin):
 class GoogleSyncConflictAdmin(admin.ModelAdmin):
     """إدارة تعارضات مزامنة غوغل"""
 
-    list_display = ('id', 'task', 'conflict_type', 'resolution_status', 'sheet_row', 'created_at')
+    list_display = ('id', 'task', 'conflict_type', 'resolution_status', 'row_index', 'created_at')
     list_filter = ('conflict_type', 'resolution_status', 'created_at')
-    search_fields = ('task__mapping__name', 'conflict_description')
+    search_fields = ('task__mapping__name', 'description')
     readonly_fields = ('system_data', 'sheet_data', 'created_at', 'resolved_at')
 
 @admin.register(GoogleSyncSchedule)
 class GoogleSyncScheduleAdmin(admin.ModelAdmin):
     """إدارة جداول مزامنة غوغل"""
 
-    list_display = ('mapping', 'is_active', 'frequency_minutes', 'last_run', 'next_run', 'total_runs')
-    list_filter = ('is_active', 'frequency_minutes')
+    list_display = ('mapping', 'is_active', 'frequency', 'last_run', 'next_run', 'total_runs')
+    list_filter = ('is_active', 'frequency')
     search_fields = ('mapping__name',)
-    readonly_fields = ('created_at', 'updated_at', 'last_run', 'next_run', 'total_runs', 'successful_runs', 'failed_runs')
+    readonly_fields = ('created_at', 'last_run', 'next_run', 'total_runs', 'successful_runs', 'failed_runs')

@@ -21,6 +21,8 @@
 {% endblock %}
 
 {% block content %}
+<!-- CSRF token for JS requests -->
+<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
 <div class="container-fluid">
     <!-- Header -->
     <div class="row mb-4">
@@ -276,6 +278,12 @@
                                 إعدادات Google Sheets
                             </a>
                         </div>
+                        <div class="col-md-3">
+                            <button id="syncAllMappingsBtn" class="btn btn-outline-success w-100 mb-2">
+                                <i class="fas fa-sync-alt"></i><br>
+                                مزامنة جميع التعيينات
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -290,5 +298,65 @@
 setInterval(function() {
     // يمكن إضافة AJAX لتحديث البيانات دون إعادة تحميل الصفحة
 }, 30000);
+
+// مزامنة جميع التعيينات
+$(document).ready(function() {
+    $('#syncAllMappingsBtn').on('click', function(e) {
+        e.preventDefault();
+        Swal.fire({
+            title: 'تشغيل مزامنة جميع التعيينات',
+            text: 'هل أنت متأكد أنك تريد مزامنة جميع التعيينات النشطة؟',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، ابدأ المزامنة',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#6c757d',
+            customClass: { container: 'swal-rtl' }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    title: 'جاري تشغيل المزامنة...',
+                    text: 'يرجى الانتظار حتى انتهاء جميع التعيينات',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+                fetch('/odoo-db-manager/advanced-sync/api/run-sync-all/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                        'Content-Type': 'application/json',
+                    },
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: 'تمت المزامنة بنجاح!',
+                            text: data.message || 'تمت مزامنة جميع التعيينات بنجاح',
+                            icon: 'success',
+                            customClass: { container: 'swal-rtl' }
+                        });
+                    } else {
+                        Swal.fire({
+                            title: 'فشل المزامنة',
+                            text: data.error || 'حدث خطأ أثناء المزامنة',
+                            icon: 'error',
+                            customClass: { container: 'swal-rtl' }
+                        });
+                    }
+                })
+                .catch(() => {
+                    Swal.fire({
+                        title: 'خطأ في الاتصال',
+                        text: 'تعذر الاتصال بالخادم',
+                        icon: 'error',
+                        customClass: { container: 'swal-rtl' }
+                    });
+                });
+            }
+        });
+    });
+});
 </script>
 {% endblock %}

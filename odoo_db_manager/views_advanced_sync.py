@@ -478,7 +478,7 @@ def api_run_sync(request, mapping_id):
                     raise Exception('لا توجد بيانات في الجدول')
 
                 # تنفيذ المزامنة باستخدام الخدمة المتقدمة
-                from .google_sync_advanced import AdvancedSyncService
+                from .advanced_sync_service import AdvancedSyncService
                 sync_service = AdvancedSyncService(mapping)
                 result = sync_service.sync_from_sheets(task)
 
@@ -639,65 +639,99 @@ def mapping_update_columns(request, mapping_id):
 @user_passes_test(is_staff_or_superuser)
 @require_http_methods(["POST"])
 def start_sync(request, mapping_id):
-    """بدء المزامنة (تشخيص: تتبع التنفيذ خطوة بخطوة)"""
+    """بدء المزامنة (تنفيذ منطق السكريبت بالضبط)"""
     import sys
     print("=== START_SYNC VIEW CALLED ===", file=sys.stderr, flush=True)
     try:
-        print("[SYNC][DEBUG] before get_object_or_404", file=sys.stderr, flush=True)
+        # جلب التعيين والمستخدم
         mapping = get_object_or_404(GoogleSheetMapping, id=mapping_id)
-        print("[SYNC][DEBUG] mapping loaded", file=sys.stderr, flush=True)
+        user = request.user
+        
+        # طباعة معلومات التعيين للتشخيص
+        print(f'التعيين: {mapping.name}', file=sys.stderr, flush=True)
+        print(f'معرف الجدول: {mapping.spreadsheet_id}', file=sys.stderr, flush=True)
+        print(f'اسم الصفحة: {mapping.sheet_name}', file=sys.stderr, flush=True)
+        print(f'تعيينات الأعمدة: {mapping.column_mappings}', file=sys.stderr, flush=True)
+        
         # التحقق من وجود تعيينات الأعمدة
+        if isinstance(mapping.column_mappings, str):
+            try:
+                mapping.column_mappings = json.loads(mapping.column_mappings)
+                mapping.save(update_fields=["column_mappings"])
+            except Exception as conv_exc:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'خطأ في تحويل تعيين الأعمدة: {conv_exc}'
+                })
+                
         if not mapping.column_mappings:
-            print("[SYNC][DEBUG] no column_mappings", file=sys.stderr, flush=True)
             return JsonResponse({
                 'success': False,
                 'error': 'يجب تحديد تعيينات الأعمدة أولاً. انتقل إلى صفحة تفاصيل التعيين وقم بتحديد تعيينات الأعمدة.'
             })
+            
         # التحقق من صحة التعيينات
         errors = mapping.validate_mappings()
         if errors:
-            print(f"[SYNC][DEBUG] mapping errors: {errors}", file=sys.stderr, flush=True)
             return JsonResponse({
                 'success': False,
                 'error': f"أخطاء في التعيين: {', '.join(errors)}"
             })
-        # إنشاء مهمة المزامنة
+            
+        # إنشاء مهمة جديدة
         task = GoogleSyncTask.objects.create(
             mapping=mapping,
             task_type='import',
-            created_by=request.user
+            created_by=user
         )
-        print(f"[SYNC][DEBUG] task created: {task.id}", file=sys.stderr, flush=True)
-        # بدء المهمة
+        
+        print(f'\nتم إنشاء المهمة: {task.id}', file=sys.stderr, flush=True)
+        
+        # تشغيل المهمة
         task.start_task()
-        print("[SYNC][DEBUG] task started", file=sys.stderr, flush=True)
+        
         # تنفيذ المزامنة
-        sync_service = AdvancedSyncService(mapping)
-        print("[SYNC][DEBUG] about to call sync_from_sheets", file=sys.stderr, flush=True)
-        result = sync_service.sync_from_sheets(task)
-        print("[SYNC][DEBUG] sync_from_sheets returned", file=sys.stderr, flush=True)
+        service = AdvancedSyncService(mapping)
+        result = service.sync_from_sheets(task)
+        
+        print('\nنتيجة المزامنة:', file=sys.stderr, flush=True)
+        print(f'نجحت: {result["success"]}', file=sys.stderr, flush=True)
+        
         if result['success']:
-            # تحديث المهمة بالنتائج
             task.mark_completed(result)
-            print("[SYNC][DEBUG] task marked completed", file=sys.stderr, flush=True)
+            stats = result['stats']
+            
+            # طباعة الإحصائيات للتشخيص
+            print('الإحصائيات:', file=sys.stderr, flush=True)
+            print(f'  - إجمالي الصفوف: {stats["total_rows"]}', file=sys.stderr, flush=True)
+            print(f'  - الصفوف المعالجة: {stats["processed_rows"]}', file=sys.stderr, flush=True)
+            print(f'  - العملاء الجدد: {stats["customers_created"]}', file=sys.stderr, flush=True)
+            print(f'  - العملاء المحدثون: {stats["customers_updated"]}', file=sys.stderr, flush=True)
+            print(f'  - الطلبات الجديدة: {stats["orders_created"]}', file=sys.stderr, flush=True)
+            print(f'  - الطلبات المحدثة: {stats["orders_updated"]}', file=sys.stderr, flush=True)
+            print(f'  - الأخطاء: {len(stats["errors"])}', file=sys.stderr, flush=True)
+            
+            if stats['errors']:
+                print(f'  - أول خطأ: {stats["errors"][0]}', file=sys.stderr, flush=True)
+                
             return JsonResponse({
                 'success': True,
                 'task_id': task.id,
-                'stats': result['stats'],
+                'stats': stats,
                 'conflicts': result.get('conflicts', 0),
-                'message': f"تمت المزامنة بنجاح! تم معالجة {result['stats']['processed_rows']} صف"
+                'message': f"تمت المزامنة بنجاح! تم معالجة {stats['processed_rows']} صف"
             })
         else:
-            # تحديث المهمة بالفشل
             task.mark_failed(result.get('error', 'خطأ غير معروف'))
-            print("[SYNC][DEBUG] task marked failed", file=sys.stderr, flush=True)
+            print(f'خطأ: {result.get("error")}', file=sys.stderr, flush=True)
+            
             return JsonResponse({
                 'success': False,
                 'error': result.get('error', 'خطأ غير معروف')
             })
     except Exception as e:
         import traceback
-        print(f"[SYNC][DEBUG] EXCEPTION: {e}\n{traceback.format_exc()}", file=sys.stderr, flush=True)
+        print(f"[SYNC][ERROR] EXCEPTION: {e}\n{traceback.format_exc()}", file=sys.stderr, flush=True)
         logger.error(f"خطأ في بدء المزامنة: {str(e)}")
         return JsonResponse({
             'success': False,
@@ -973,3 +1007,54 @@ def get_task_status(request, task_id):
             'success': False,
             'error': str(e)
         })
+
+
+@login_required
+@user_passes_test(is_staff_or_superuser)
+@require_http_methods(["POST"])
+def api_run_sync_all(request):
+    """تشغيل مزامنة جميع التعيينات النشطة دفعة واحدة عبر API"""
+    try:
+        active_mappings = GoogleSheetMapping.objects.filter(is_active=True)
+        if not active_mappings.exists():
+            return JsonResponse({'success': False, 'error': 'لا توجد تعيينات نشطة للمزامنة'})
+
+        results = []
+        for mapping in active_mappings:
+            # إنشاء مهمة مزامنة لكل تعيين
+            task = GoogleSyncTask.objects.create(
+                mapping=mapping,
+                status='pending',
+                created_by=request.user
+            )
+            try:
+                task.status = 'running'
+                task.save()
+                sync_service = AdvancedSyncService(mapping)
+                result = sync_service.sync_from_sheets(task)
+                task.status = 'completed' if result.get('success') else 'failed'
+                task.results = result
+                task.result = json.dumps(result.get('stats', {}), ensure_ascii=False)
+                task.save()
+                mapping.last_sync = timezone.now()
+                mapping.save(update_fields=['last_sync'])
+                results.append({
+                    'mapping': mapping.name,
+                    'success': result.get('success', False),
+                    'stats': result.get('stats', {}),
+                    'errors': result.get('stats', {}).get('errors', []),
+                })
+            except Exception as sync_error:
+                task.status = 'failed'
+                task.error_message = str(sync_error)
+                task.result = f'فشلت المزامنة: {str(sync_error)}'
+                task.save()
+                results.append({
+                    'mapping': mapping.name,
+                    'success': False,
+                    'error': str(sync_error)
+                })
+        return JsonResponse({'success': True, 'message': 'تمت مزامنة جميع التعيينات', 'results': results})
+    except Exception as e:
+        logger.error(f"خطأ في مزامنة جميع التعيينات: {str(e)}")
+        return JsonResponse({'success': False, 'error': str(e)})

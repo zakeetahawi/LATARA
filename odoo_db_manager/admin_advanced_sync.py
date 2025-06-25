@@ -148,8 +148,8 @@ class GoogleSyncConflictInline(admin.TabularInline):
     """عرض التعارضات كـ inline"""
     model = GoogleSyncConflict
     extra = 0
-    readonly_fields = ['conflict_type', 'record_type', 'sheet_row', 'conflict_description', 'created_at']
-    fields = ['conflict_type', 'record_type', 'sheet_row', 'resolution_status', 'created_at']
+    readonly_fields = ['conflict_type', 'field_name', 'row_index', 'description', 'created_at']
+    fields = ['conflict_type', 'field_name', 'row_index', 'resolution_status', 'created_at']
     
     def has_add_permission(self, request, obj=None):
         return False
@@ -277,29 +277,29 @@ class GoogleSyncConflictAdmin(admin.ModelAdmin):
     """إدارة تعارضات المزامنة"""
     
     list_display = [
-        'id', 'task', 'conflict_type', 'record_type', 'sheet_row',
+        'id', 'task', 'conflict_type', 'field_name', 'row_index',
         'resolution_status', 'created_at', 'resolved_at'
     ]
     
     list_filter = [
-        'conflict_type', 'resolution_status', 'record_type',
+        'conflict_type', 'resolution_status',
         'created_at', 'resolved_at'
     ]
     
-    search_fields = ['task__mapping__name', 'conflict_description', 'resolution_notes']
+    search_fields = ['task__mapping__name', 'description', 'resolution_notes']
     
     readonly_fields = [
-        'task', 'conflict_type', 'record_type', 'sheet_row',
-        'system_data_display', 'sheet_data_display', 'conflict_description',
+        'task', 'conflict_type', 'field_name', 'row_index',
+        'system_data_display', 'sheet_data_display', 'description',
         'created_at', 'resolved_at'
     ]
     
     fieldsets = (
         (_('معلومات التعارض'), {
-            'fields': ('task', 'conflict_type', 'record_type', 'sheet_row')
+            'fields': ('task', 'conflict_type', 'field_name', 'row_index')
         }),
         (_('وصف التعارض'), {
-            'fields': ('conflict_description',)
+            'fields': ('description',)
         }),
         (_('البيانات'), {
             'fields': ('system_data_display', 'sheet_data_display'),
@@ -361,18 +361,18 @@ class GoogleSyncScheduleAdmin(admin.ModelAdmin):
         'next_run', 'success_rate_display', 'created_at'
     ]
     
-    list_filter = ['is_active', 'frequency_minutes', 'created_at']
+    list_filter = ['is_active', 'frequency', 'created_at']
     
     search_fields = ['mapping__name']
     
     readonly_fields = [
         'last_run', 'next_run', 'total_runs', 'successful_runs', 'failed_runs',
-        'success_rate_display', 'created_at', 'updated_at'
+        'success_rate_display', 'created_at'
     ]
     
     fieldsets = (
         (_('الجدولة'), {
-            'fields': ('mapping', 'is_active', 'frequency_minutes')
+            'fields': ('mapping', 'is_active', 'frequency', 'custom_minutes')
         }),
         (_('التوقيت'), {
             'fields': ('last_run', 'next_run')
@@ -383,25 +383,24 @@ class GoogleSyncScheduleAdmin(admin.ModelAdmin):
             )
         }),
         (_('معلومات النظام'), {
-            'fields': ('created_by', 'created_at', 'updated_at'),
+            'fields': ('created_by', 'created_at'),
             'classes': ('collapse',)
         })
     )
     
     def frequency_display(self, obj):
         """عرض التكرار بشكل مفهوم"""
+        if obj.frequency == 'custom':
+            return f"كل {obj.custom_minutes} دقيقة"
+        
         frequency_map = {
-            1: _('كل دقيقة'),
-            5: _('كل 5 دقائق'),
-            15: _('كل 15 دقيقة'),
-            30: _('كل 30 دقيقة'),
-            60: _('كل ساعة'),
-            360: _('كل 6 ساعات'),
-            720: _('كل 12 ساعة'),
-            1440: _('يومياً'),
+            'hourly': _('كل ساعة'),
+            'daily': _('يومياً'),
+            'weekly': _('أسبوعياً'),
+            'monthly': _('شهرياً'),
         }
         
-        return frequency_map.get(obj.frequency_minutes, f"كل {obj.frequency_minutes} دقيقة")
+        return frequency_map.get(obj.frequency, obj.frequency)
     
     frequency_display.short_description = _('التكرار')
     

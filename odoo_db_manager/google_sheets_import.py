@@ -339,3 +339,37 @@ class GoogleSheetsImporter:
             'failed': failed,
             'errors': errors
         }
+        
+    def update_sheet_data(self, sheet_name, data, start_row=1):
+        """
+        تحديث بيانات Google Sheets
+        """
+        if not self.service:
+            self.initialize()
+            
+        try:
+            from .google_sheets_utils import build_range_name
+            
+            if not self.service or not self.config:
+                raise Exception("لم يتم تهيئة الخدمة بشكل صحيح")
+                
+            # تحديد نطاق البيانات
+            range_name = build_range_name(sheet_name, start_row, start_row + len(data) - 1)
+            
+            # تحديث البيانات
+            body = {
+                'values': data
+            }
+            
+            result = self.service.spreadsheets().values().update(
+                spreadsheetId=self.config.spreadsheet_id,
+                range=range_name,
+                valueInputOption='USER_ENTERED',
+                body=body
+            ).execute()
+            
+            return result.get('updatedCells', 0)
+            
+        except Exception as e:
+            logger.error(f"خطأ في تحديث بيانات الصفحة: {str(e)}")
+            raise

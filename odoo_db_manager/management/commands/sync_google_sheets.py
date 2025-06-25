@@ -236,27 +236,48 @@ class Command(BaseCommand):
             )
 
     def sync_single_mapping(self, mapping, reverse=False):
-        """مزامنة تعيين واحد"""
+        """مزامنة تعيين واحد باستخدام نفس منطق السكريبت"""
         sync_type = "العكسية" if reverse else "العادية"
         self.stdout.write(f"🔄 جاري مزامنة {mapping.name} - المزامنة {sync_type}...")
         
-        # إنشاء مهمة
+        # طباعة معلومات التعيين
+        self.stdout.write(f'التعيين: {mapping.name}')
+        self.stdout.write(f'معرف الجدول: {mapping.spreadsheet_id}')
+        self.stdout.write(f'اسم الصفحة: {mapping.sheet_name}')
+        self.stdout.write(f'تعيينات الأعمدة: {mapping.column_mappings}')
+        
+        # جلب مستخدم النظام
+        from accounts.models import User
+        user = User.objects.filter(is_superuser=True).first()
+        
+        # إنشاء مهمة جديدة
         task_type = 'reverse_sync' if reverse else 'import'
         task = GoogleSyncTask.objects.create(
             mapping=mapping,
-            task_type=task_type
+            task_type=task_type,
+            created_by=user
         )
         
-        # تشغيل المزامنة
-        sync_service = AdvancedSyncService(mapping)
+        self.stdout.write(f'\nتم إنشاء المهمة: {task.id}')
+        
+        # تشغيل المهمة
+        task.start_task()
+        
+        # تنفيذ المزامنة
+        service = AdvancedSyncService(mapping)
         
         if reverse:
-            result = sync_service.sync_to_sheets(task)
+            result = service.sync_to_sheets(task)
         else:
-            result = sync_service.sync_from_sheets(task)
+            result = service.sync_from_sheets(task)
         
-        # عرض النتائج
+        self.stdout.write('\nنتيجة المزامنة:')
+        self.stdout.write(f'نجحت: {result["success"]}')
+        
+        # معالجة النتيجة
         if result['success']:
+            task.mark_completed(result)
+            
             if reverse:
                 self.stdout.write(
                     self.style.SUCCESS(
@@ -264,23 +285,18 @@ class Command(BaseCommand):
                     )
                 )
             else:
-                stats = result.get('stats', {})
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"✅ تمت المزامنة - معالجة {stats.get('processed_rows', 0)} صف، "
-                        f"نجح {stats.get('successful_rows', 0)}, فشل {stats.get('failed_rows', 0)}"
-                    )
-                )
+                stats = result['stats']
+                self.stdout.write('الإحصائيات:')
+                self.stdout.write(f'  - إجمالي الصفوف: {stats["total_rows"]}')
+                self.stdout.write(f'  - الصفوف المعالجة: {stats["processed_rows"]}')
+                self.stdout.write(f'  - العملاء الجدد: {stats["customers_created"]}')
+                self.stdout.write(f'  - العملاء المحدثون: {stats["customers_updated"]}')
+                self.stdout.write(f'  - الطلبات الجديدة: {stats["orders_created"]}')
+                self.stdout.write(f'  - الطلبات المحدثة: {stats["orders_updated"]}')
+                self.stdout.write(f'  - الأخطاء: {len(stats["errors"])}')
                 
-                # عرض إحصائيات مفصلة
-                if stats.get('created_customers', 0) > 0:
-                    self.stdout.write(f"  📝 تم إنشاء {stats['created_customers']} عميل جديد")
-                if stats.get('created_orders', 0) > 0:
-                    self.stdout.write(f"  📦 تم إنشاء {stats['created_orders']} طلب جديد")
-                if stats.get('created_inspections', 0) > 0:
-                    self.stdout.write(f"  🔍 تم إنشاء {stats['created_inspections']} معاينة جديدة")
-                if stats.get('created_installations', 0) > 0:
-                    self.stdout.write(f"  🔧 تم إنشاء {stats['created_installations']} تركيب جديد")
+                if stats['errors']:
+                    self.stdout.write(f'  - أول خطأ: {stats["errors"][0]}')
                 
                 # عرض التعارضات
                 conflicts = result.get('conflicts', 0)
@@ -289,6 +305,7 @@ class Command(BaseCommand):
                         self.style.WARNING(f"  ⚠️  {conflicts} تعارض يحتاج حل")
                     )
         else:
+            task.mark_failed(result.get('error', 'خطأ غير معروف'))
             self.stdout.write(
                 self.style.ERROR(f"❌ فشلت المزامنة: {result.get('error')}")
             )
