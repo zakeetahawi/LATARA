@@ -12,7 +12,11 @@
             </div>
             <div class="card-body">
                 <div class="text-center mb-4">
-                    <img src="{% static 'img/logo.png' %}" alt="شعار النظام" class="img-fluid" style="max-width: 150px;">
+                    {% if company_info and company_info.logo %}
+                        <img src="{{ company_info.logo.url }}" alt="شعار الشركة" class="img-fluid" style="max-width: 150px;">
+                    {% else %}
+                        <img src="{% static 'img/logo.png' %}" alt="شعار النظام" class="img-fluid" style="max-width: 150px;">
+                    {% endif %}
                 </div>
                 
                 <h4 class="text-center mb-4">{{ subtitle|default:"نظام إدارة المصنع والعملاء" }}</h4>

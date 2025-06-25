@@ -81,6 +81,9 @@ def about(request):
     if not about_settings:
         about_settings = AboutPageSettings.objects.create()
 
+    # جلب معلومات الشركة (logo)
+    company_info = CompanyInfo.objects.first()
+    
     context = {
         'title': about_settings.title,
         'subtitle': about_settings.subtitle,
@@ -89,6 +92,7 @@ def about(request):
         'system_release_date': about_settings.system_release_date,
         'system_developer': about_settings.system_developer,
         'current_year': timezone.now().year,
+        'company_info': company_info,  # إضافة معلومات الشركة للسياق
     }
     return render(request, 'about.html', context)
 

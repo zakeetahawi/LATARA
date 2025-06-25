@@ -6,8 +6,6 @@ from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 from .models import Database, Backup
 from .google_sync import GoogleSyncConfig, GoogleSyncLog
-from .google_sync_advanced import GoogleSheetMapping, GoogleSyncTask, GoogleSyncConflict, GoogleSyncSchedule
-from . import admin_advanced_sync
 
 @admin.register(Database)
 class DatabaseAdmin(admin.ModelAdmin):
@@ -94,40 +92,3 @@ class GoogleSyncLogAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-
-
-@admin.register(GoogleSheetMapping)
-class GoogleSheetMappingAdmin(admin.ModelAdmin):
-    """إدارة إعدادات مزامنة جوجل شيت"""
-
-    list_display = ('name', 'sheet_name', 'spreadsheet_id', 'is_active', 'last_sync', 'created_at')
-    search_fields = ('name', 'sheet_name', 'spreadsheet_id')
-    list_filter = ('is_active',)
-    readonly_fields = ('created_at', 'updated_at', 'last_sync', 'last_row_processed')
-
-@admin.register(GoogleSyncTask)
-class GoogleSyncTaskAdmin(admin.ModelAdmin):
-    """إدارة مهام مزامنة غوغل"""
-
-    list_display = ('id', 'mapping', 'task_type', 'status', 'started_at', 'completed_at', 'created_by')
-    list_filter = ('status', 'task_type', 'created_at')
-    search_fields = ('mapping__name',)
-    readonly_fields = ('results', 'error_message', 'error_details', 'created_at', 'started_at', 'completed_at')
-
-@admin.register(GoogleSyncConflict)
-class GoogleSyncConflictAdmin(admin.ModelAdmin):
-    """إدارة تعارضات مزامنة غوغل"""
-
-    list_display = ('id', 'task', 'conflict_type', 'resolution_status', 'row_index', 'created_at')
-    list_filter = ('conflict_type', 'resolution_status', 'created_at')
-    search_fields = ('task__mapping__name', 'description')
-    readonly_fields = ('system_data', 'sheet_data', 'created_at', 'resolved_at')
-
-@admin.register(GoogleSyncSchedule)
-class GoogleSyncScheduleAdmin(admin.ModelAdmin):
-    """إدارة جداول مزامنة غوغل"""
-
-    list_display = ('mapping', 'is_active', 'frequency', 'last_run', 'next_run', 'total_runs')
-    list_filter = ('is_active', 'frequency')
-    search_fields = ('mapping__name',)
-    readonly_fields = ('created_at', 'last_run', 'next_run', 'total_runs', 'successful_runs', 'failed_runs')
