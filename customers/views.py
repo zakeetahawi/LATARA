@@ -457,3 +457,22 @@ def test_customer_form(request):
     """Test view for debugging customer form"""
     form = CustomerForm(user=request.user)
     return render(request, '../test_form.html', {'form': form})
+
+def find_customer_by_phone(request):
+    """API: البحث عن عميل برقم الهاتف وإرجاع بياناته JSON"""
+    phone = request.GET.get('phone')
+    if not phone:
+        return JsonResponse({'found': False, 'error': 'رقم الهاتف مطلوب'}, status=400)
+    customer = Customer.objects.filter(phone=phone).first()
+    if customer:
+        return JsonResponse({
+            'found': True,
+            'id': customer.pk,
+            'name': customer.name,
+            'branch': customer.branch.name if customer.branch else '',
+            'phone': customer.phone,
+            'email': customer.email,
+            'address': customer.address,
+            'url': f"/customers/{customer.pk}/"
+        })
+    return JsonResponse({'found': False})

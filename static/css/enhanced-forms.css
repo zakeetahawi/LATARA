@@ -195,19 +195,27 @@
 }
 
 /* File Upload Enhancement */
+[data-theme="custom-theme"] .file-upload-enhanced,
+[data-theme="modern-black"] .file-upload-enhanced {
+    cursor: pointer;
+}
 .file-upload-enhanced {
     position: relative;
     display: inline-block;
-    cursor: pointer;
     width: 100%;
+    /* تم إزالة cursor: pointer من القاعدة العامة */
 }
 
+[data-theme="custom-theme"] .file-upload-enhanced input[type=file],
+[data-theme="modern-black"] .file-upload-enhanced input[type=file] {
+    cursor: pointer;
+}
 .file-upload-enhanced input[type=file] {
     position: absolute;
     opacity: 0;
     width: 100%;
     height: 100%;
-    cursor: pointer;
+    /* تم إزالة cursor: pointer من القاعدة العامة */
 }
 
 .file-upload-area {

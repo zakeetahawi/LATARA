@@ -240,6 +240,13 @@ class Customer(models.Model):
                 raise ValidationError(
                     _('لا يمكنك إضافة عملاء لفرع آخر')
                 )
+        # منع تكرار رقم الهاتف
+        if self.phone:
+            qs = Customer.objects.filter(phone=self.phone)
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            if qs.exists():
+                raise ValidationError({'phone': _('رقم الهاتف مستخدم بالفعل لعميل آخر')})
 
     def save(self, *args, **kwargs):
         if not self.code:

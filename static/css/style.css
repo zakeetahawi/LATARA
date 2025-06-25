@@ -1,3 +1,76 @@
+/* =====================
+   Theme Variables
+   ===================== */
+:root {
+    --primary: #0b5088;
+    --secondary: #081868;
+    --accent: #0b5088;
+    --background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    --background-solid: #f5f7fa;
+    --surface: #F0F2F5;
+    --card-bg: #FFFFFF;
+    --elevated-bg: #FBFCFD;
+    --text-primary: #3D3427;
+    --text-secondary: #6D6055;
+    --text-tertiary: #8B8178;
+    --success: #4CAF50;
+    --warning: #FF9800;
+    --error: #F44336;
+    --info: #2196F3;
+    --border: #DED5CE;
+    --separator: #E8DCCA;
+    --neutral: #B7A99A;
+    --shadow: 0 2px 4px rgba(0,0,0,0.1);
+    --shadow-light: 0 1px 2px rgba(0,0,0,0.05);
+    --blur: blur(5px);
+    --radius: 8px;
+    --radius-large: 12px;
+    --transition: all 0.3s ease;
+    --light-bg: #E0E3E7;
+    --dark-text: #3D3427;
+    --alert: #C17817;
+    --light-accent: #D2B48C;
+}
+
+/* =====================
+   Cursor Fixes (Default Theme Only)
+   ===================== */
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) body,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) html {
+    background: var(--background-solid) !important;
+    cursor: default !important;
+}
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) input,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) textarea,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) select,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) [contenteditable="true"],
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .form-control,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .form-select {
+    cursor: text !important;
+}
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) button,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) a,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .btn,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .nav-link,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) label,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .dropdown-item,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .page-link,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .card,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .list-group-item,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .table th,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .table td {
+    cursor: pointer !important;
+}
+
+/* =====================
+   Remove All Global Cursor Rules
+   ===================== */
+/* لا توجد أي قاعدة cursor خارج شرط الثيم الافتراضي */
+
+/* =====================
+   باقي تنسيقات الصفحة (بدون أي قواعد cursor)
+   ===================== */
+
 /* Theme Variables - متغيرات الثيمات الموحدة */
 :root {
     /* Default Theme (Current brown theme) */
@@ -758,4 +831,42 @@ body,
 .table,
 .toast {
     transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* حل مشكلة مؤشر الكتابة (cursor) في جميع أنحاء التطبيق */
+/* ضمان عدم ظهور مؤشر الكتابة إلا في أماكن الإدخال فقط في الثيم الافتراضي */
+/* حذف القواعد العامة للمؤشر */
+
+/* تنظيف جميع قواعد المؤشر - الحل النهائي */
+/* إبقاء القواعد الخاصة بالثيم الافتراضي فقط */
+
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) body,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) html {
+    cursor: default !important;
+}
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) input,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) textarea,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) select,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) [contenteditable="true"],
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .form-control,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .form-select {
+    cursor: text !important;
+}
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) button,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) a,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .btn,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .nav-link,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) label,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .dropdown-item,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .page-link,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .card,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .list-group-item,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .table th,
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) .table td {
+    cursor: pointer !important;
+}
+
+/* أقوى قاعدة لمنع ظهور مؤشر الكتابة في أي مكان غير الإدخال في الثيم الافتراضي */
+html:not([data-theme="custom-theme"]):not([data-theme="modern-black"]) *:not(input):not(textarea):not(select):not([contenteditable="true"]):not(.form-control):not(.form-select):not(button):not(a):not(.btn):not(.nav-link):not(label):not(.dropdown-item):not(.page-link):not(.card):not(.list-group-item):not(.table):not(th):not(td) {
+    cursor: default !important;
 }
