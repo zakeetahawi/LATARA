@@ -100,10 +100,9 @@ def contact(request):
     """
     View for the contact page
     """
-    # الحصول على إعدادات نموذج الاتصال أو إنشاء إعداد افتراضي إذا لم يكن موجودًا
-    contact_settings = ContactFormSettings.objects.first()
-    if not contact_settings:
-        contact_settings = ContactFormSettings.objects.create()
+    # الحصول على معلومات الشركة من CompanyInfo
+    from accounts.models import CompanyInfo
+    company_info = CompanyInfo.objects.first() or CompanyInfo.objects.create()
 
     if request.method == 'POST':
         name = request.POST.get('name')
@@ -112,24 +111,19 @@ def contact(request):
         message = request.POST.get('message')
 
         if not all([name, email, subject, message]):
-            messages.error(request, contact_settings.form_error_message)
+            messages.error(request, 'يرجى ملء جميع الحقول المطلوبة.')
         elif not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
             messages.error(request, 'يرجى إدخال بريد إلكتروني صحيح.')
         else:
-            # Here you would typically send the email
-            # For now, we'll just show a success message
-            messages.success(request, contact_settings.form_success_message)
+            # هنا يمكن إرسال البريد الإلكتروني فعليًا
+            messages.success(request, 'تم إرسال رسالتك بنجاح. سنتواصل معك قريباً.')
             return redirect('contact')
 
     context = {
-        'title': contact_settings.title,
-        'description': contact_settings.description,
-        'form_title': contact_settings.form_title,
-        'company_name': contact_settings.company_name,  # إضافة اسم الشركة
-        'contact_email': contact_settings.contact_email,
-        'contact_phone': contact_settings.contact_phone,
-        'contact_address': contact_settings.contact_address,
-        'contact_hours': contact_settings.contact_hours,
+        'title': 'اتصل بنا',
+        'description': company_info.description,
+        'form_title': 'نموذج الاتصال',
+        'company_info': company_info,
         'current_year': timezone.now().year,
     }
     return render(request, 'contact.html', context)

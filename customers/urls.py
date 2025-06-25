@@ -22,4 +22,7 @@ urlpatterns = [
     # Category Management
     path('categories/', views.customer_category_list, name='category_list'),
     path('categories/add/', views.add_customer_category, name='add_category'),
+
+    # API path to find customer by phone number
+    path('find-by-phone/', views.find_customer_by_phone, name='find_customer_by_phone'),
 ]

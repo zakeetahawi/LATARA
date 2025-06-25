@@ -76,6 +76,9 @@
                                 <a href="{% url 'customers:customer_delete' customer.pk %}" class="btn btn-outline-danger btn-sm">
                                     <i class="fas fa-trash"></i> {% trans 'حذف' %}
                                 </a>
+                                <a href="{% url 'orders:order_create' %}?customer_id={{ customer.pk }}" class="btn btn-success btn-sm">
+                                    <i class="fas fa-plus"></i> {% trans 'إنشاء طلب جديد' %}
+                                </a>
                                 <a href="{% url 'customers:customer_list' %}" class="btn btn-outline-secondary btn-sm">
                                     <i class="fas fa-arrow-left"></i> {% trans 'العودة' %}
                                 </a>

@@ -19,11 +19,11 @@
                     <div class="col-md-6">
                         <h5 class="mb-3">معلومات الاتصال</h5>
                         <div class="mb-4">
-                            <p><i class="fas fa-building text-primary"></i> {{ company_name|default:company_info.name|default:'اسم الشركة' }}</p>
-                            <p><i class="fas fa-map-marker-alt text-primary"></i> {{ contact_address|default:company_info.address|default:'العنوان' }}</p>
-                            <p><i class="fas fa-phone text-primary"></i> {{ contact_phone|default:company_info.phone|default:'+20 123 456 7890' }}</p>
-                            <p><i class="fas fa-envelope text-primary"></i> {{ contact_email|default:company_info.email|default:'info@latara.com' }}</p>
-                            <p><i class="fas fa-clock text-primary"></i> {{ contact_hours|default:company_info.working_hours|default:'ساعات العمل: 9 صباحاً - 5 مساءً' }}</p>
+                            <p><i class="fas fa-building text-primary"></i> {{ company_info.name|default:'اسم الشركة' }}</p>
+                            <p><i class="fas fa-map-marker-alt text-primary"></i> {{ company_info.address|default:'العنوان' }}</p>
+                            <p><i class="fas fa-phone text-primary"></i> {{ company_info.phone|default:'+20 123 456 7890' }}</p>
+                            <p><i class="fas fa-envelope text-primary"></i> {{ company_info.email|default:'info@latara.com' }}</p>
+                            <p><i class="fas fa-clock text-primary"></i> {{ company_info.working_hours|default:'ساعات العمل: 9 صباحاً - 5 مساءً' }}</p>
                         </div>
 
                         <h5 class="mb-3">تابعنا على</h5>
@@ -41,6 +41,11 @@
                             {% if company_info.linkedin %}
                             <a href="{{ company_info.linkedin }}" class="btn btn-outline-primary me-2" target="_blank">
                                 <i class="fab fa-linkedin-in"></i>
+                            </a>
+                            {% endif %}
+                            {% if company_info.instagram %}
+                            <a href="{{ company_info.instagram }}" class="btn btn-outline-primary me-2" target="_blank">
+                                <i class="fab fa-instagram"></i>
                             </a>
                             {% endif %}
                         </div>
@@ -82,11 +87,6 @@
                         </form>
                     </div>
                 </div>
-            </div>
-            <div class="card-footer">
-                <a href="{% url 'home' %}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-right"></i> العودة للرئيسية
-                </a>
             </div>
         </div>
     </div>

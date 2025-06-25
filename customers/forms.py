@@ -84,6 +84,21 @@ class CustomerForm(forms.ModelForm):
             
         return image
 
+    def clean_phone(self):
+        phone = self.cleaned_data.get('phone')
+        if phone:
+            qs = Customer.objects.filter(phone=phone)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                existing = qs.first()
+                raise ValidationError(
+                    _('رقم الهاتف مستخدم بالفعل للعميل: %(name)s (الفرع: %(branch)s)\nيمكنك إنشاء الطلب مباشرة باسم العميل الموجود.'),
+                    code='duplicate_phone',
+                    params={'name': existing.name, 'branch': existing.branch.name if existing.branch else '-'}
+                )
+        return phone
+
 class CustomerNoteForm(forms.ModelForm):
     class Meta:
         model = CustomerNote

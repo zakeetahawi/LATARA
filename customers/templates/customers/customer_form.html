@@ -347,6 +347,7 @@
                             <div class="form-group">
                                 <label for="{{ form.phone.id_for_label }}" class="form-label required-field">{{ form.phone.label }}</label>
                                 {{ form.phone }}
+                                <div id="phone-duplicate-info" style="display:none; margin-top:8px;"></div>
                                 {% if form.phone.errors %}
                                 <span class="error-text">{{ form.phone.errors.0 }}</span>
                                 {% endif %}
@@ -486,6 +487,47 @@ document.addEventListener('DOMContentLoaded', function() {
             showFirstError();
         }
     });
+    
+    // البحث عن عميل برقم الهاتف
+    const phoneInput = document.getElementById('{{ form.phone.id_for_label }}');
+    const infoDiv = document.getElementById('phone-duplicate-info');
+    if (phoneInput) {
+        phoneInput.addEventListener('blur', function() {
+            const phone = phoneInput.value.trim();
+            if (phone.length < 5) {
+                infoDiv.style.display = 'none';
+                infoDiv.innerHTML = '';
+                return;
+            }
+            fetch('/customers/find-by-phone/?phone=' + encodeURIComponent(phone))
+                .then(res => res.json())
+                .then(data => {
+                    if (data.found) {
+                        infoDiv.style.display = 'block';
+                        infoDiv.innerHTML = `
+                            <div class="alert alert-warning p-2 mb-2">
+                                <b>هذا الرقم مسجل باسم:</b> <span class="text-primary">${data.name}</span>
+                                <br><b>الفرع:</b> <span>${data.branch}</span>
+                                <br><b>العنوان:</b> <span>${data.address || '-'}</span>
+                                <br><b>البريد:</b> <span>${data.email || '-'}</span>
+                                <br>
+                                <a href="${data.url}" class="btn btn-sm btn-success mt-2" target="_blank">
+                                    <i class="fas fa-user"></i> عرض بطاقة العميل
+                                </a>
+                                <span class="d-block mt-2 text-danger">يمكنك إنشاء الطلب مباشرة باسم العميل الموجود حتى لو من فرع آخر.</span>
+                            </div>
+                        `;
+                    } else {
+                        infoDiv.style.display = 'none';
+                        infoDiv.innerHTML = '';
+                    }
+                })
+                .catch(() => {
+                    infoDiv.style.display = 'none';
+                    infoDiv.innerHTML = '';
+                });
+        });
+    }
 });
 
 function nextTab(tabId) {
