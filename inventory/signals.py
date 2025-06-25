@@ -6,8 +6,9 @@ from .models import Product, StockTransaction
 @receiver(post_save, sender=SystemSettings)
 def update_currency_on_settings_change(sender, instance, **kwargs):
     """تحديث العملة لجميع المنتجات عند تغيير إعدادات النظام"""
-    if instance.default_currency:
-        Product.objects.all().update(currency=instance.default_currency)
+    # استخدم الحقل الصحيح (currency) بدلاً من default_currency
+    if hasattr(instance, 'currency') and instance.currency:
+        Product.objects.all().update(currency=instance.currency)
 
 @receiver(post_save, sender=StockTransaction)
 def update_running_balance(sender, instance, created, **kwargs):

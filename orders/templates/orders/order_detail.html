@@ -68,15 +68,15 @@
                         </tr>
                         <tr>
                             <th>المبلغ الإجمالي</th>
-                            <td>{{ order.total_amount }} ج.م</td>
+                            <td>{{ order.total_amount }} {{ currency_symbol }}</td>
                         </tr>
                         <tr>
                             <th>المبلغ المدفوع</th>
-                            <td>{{ order.paid_amount }} ج.م</td>
+                            <td>{{ order.paid_amount }} {{ currency_symbol }}</td>
                         </tr>
                         <tr>
                             <th>المبلغ المتبقي</th>
-                            <td>{{ order.remaining_amount }} ج.م</td>
+                            <td>{{ order.remaining_amount }} {{ currency_symbol }}</td>
                         </tr>
                         <tr>
                             <th>تم الإنشاء بواسطة</th>
@@ -333,7 +333,7 @@
                     <tfoot>
                         <tr class="table-light">
                             <th colspan="4" class="text-start">المجموع</th>
-                            <th>{{ order.total_amount }} ج.م</th>
+                            <th>{{ order.total_amount }} {{ currency_symbol }}</th>
                             <td></td>
                         </tr>
                     </tfoot>

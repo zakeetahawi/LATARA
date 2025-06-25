@@ -14,6 +14,7 @@ from .inventory_utils import (
     get_cached_dashboard_stats,
     invalidate_product_cache
 )
+from accounts.models import SystemSettings
 
 class InventoryDashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'inventory/dashboard_new_icons.html'
@@ -347,6 +348,10 @@ def product_detail(request, pk):
         # Move to next day
         current_date += timedelta(days=1)
 
+    # جلب إعدادات النظام
+    system_settings = SystemSettings.get_settings()
+    currency_symbol = system_settings.currency_symbol if system_settings else 'ر.س'
+
     # إضافة عدد التنبيهات النشطة
     from .models import StockAlert
     alerts_count = StockAlert.objects.filter(status='active').count()
@@ -376,7 +381,8 @@ def product_detail(request, pk):
         'active_menu': 'products',
         'alerts_count': alerts_count,
         'recent_alerts': recent_alerts,
-        'current_year': current_year
+        'current_year': current_year,
+        'currency_symbol': currency_symbol,
     }
     return render(request, 'inventory/product_detail_new_icons.html', context)
 

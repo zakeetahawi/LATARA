@@ -10,7 +10,7 @@ from django.utils import timezone
 from django.core.exceptions import ValidationError
 from .models import Order, OrderItem, Payment
 from .forms import OrderForm, OrderItemFormSet, PaymentForm
-from accounts.models import Branch, Salesperson, Department, Notification
+from accounts.models import Branch, Salesperson, Department, Notification, SystemSettings
 from customers.models import Customer
 from inventory.models import Product
 from inspections.models import Inspection
@@ -69,11 +69,16 @@ def order_list(request):
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
+    # Get currency symbol from system settings
+    system_settings = SystemSettings.get_settings()
+    currency_symbol = system_settings.currency_symbol if system_settings else 'ج.م'
+
     context = {
         'page_obj': page_obj,
         'search_query': search_query,
         'status_filter': status_filter,
         'total_orders': orders.count(),
+        'currency_symbol': currency_symbol,  # Add currency symbol to context
     }
 
     return render(request, 'orders/order_list.html', context)
@@ -98,11 +103,16 @@ def order_detail(request, pk):
             created_at__gte=order.created_at
         ).order_by('-created_at')
 
+    # Get currency symbol from system settings
+    system_settings = SystemSettings.get_settings()
+    currency_symbol = system_settings.currency_symbol if system_settings else 'ج.م'
+
     context = {
         'order': order,
         'payments': payments,
         'order_items': order_items,
         'inspections': inspections,
+        'currency_symbol': currency_symbol,  # Add currency symbol to context
     }
 
     return render(request, 'orders/order_detail.html', context)
@@ -389,10 +399,15 @@ def payment_create(request, order_pk):
     else:
         form = PaymentForm()
 
+    # Get currency symbol from system settings
+    system_settings = SystemSettings.get_settings()
+    currency_symbol = system_settings.currency_symbol if system_settings else 'ج.م'
+
     context = {
         'form': form,
         'order': order,
-        'title': f'تسجيل دفعة جديدة للطلب: {order.order_number}'
+        'title': f'تسجيل دفعة جديدة للطلب: {order.order_number}',
+        'currency_symbol': currency_symbol,  # Add currency symbol to context
     }
 
     return render(request, 'orders/payment_form.html', context)
