@@ -46,7 +46,17 @@ class AdvancedSyncService:
         }
 
     def sync_from_sheets(self, task: GoogleSyncTask = None) -> Dict[str, Any]:
-        """مزامنة البيانات من Google Sheets إلى النظام"""
+        """
+        تنفيذ المزامنة من Google Sheets باستخدام التعيينات المخصصة
+        """
+        logger.info(f"SYNC LOG PATH = {os.path.join(settings.BASE_DIR, 'media', 'sync_from_sheets.log')}")
+        print("=== SYNC_FROM_SHEETS CALLED ===", file=sys.stderr, flush=True)
+        logger.info("=== SYNC_FROM_SHEETS STARTED ===")
+        logger.info(f"Mapping ID: {self.mapping.id}, Name: {self.mapping.name}")
+        logger.info(f"Sheet: {self.mapping.sheet_name}, Spreadsheet ID: {self.mapping.spreadsheet_id}")
+        logger.info(f"Header row: {self.mapping.header_row}, Start row: {self.mapping.start_row}")
+        logger.info(f"Column mappings: {self.mapping.column_mappings}")
+        logger.info("=== TEST LOG ENTRY === (should appear in sync_from_sheets.log)")
         try:
             # تهيئة المستورد
             self.importer.initialize()
@@ -64,8 +74,17 @@ class AdvancedSyncService:
             # جلب البيانات من Google Sheets
             sheet_data = self._get_sheet_data()
             if not sheet_data:
-                task.fail_task("لا توجد بيانات في الجدول")
-                return {'success': False, 'error': 'لا توجد بيانات في الجدول'}
+                error_msg = "No data returned from Google Sheets - sheet may be empty or not exist"
+                logger.error(error_msg)
+                task.fail_task(error_msg)
+                return {'success': False, 'error': error_msg}
+
+            # Log sheet data info
+            logger.info(f"Sheet data retrieved - Rows: {len(sheet_data) if sheet_data else 0}")
+            if sheet_data and len(sheet_data) > 0:
+                logger.info(f"First row (headers): {sheet_data[0]}")
+                if len(sheet_data) > 1:
+                    logger.info(f"Sample data row: {sheet_data[1]}")
 
             # معالجة البيانات
             self.stats['total_rows'] = len(sheet_data) - self.mapping.header_row
@@ -161,9 +180,26 @@ class AdvancedSyncService:
     def _get_sheet_data(self) -> List[List[str]]:
         """جلب البيانات من Google Sheets"""
         try:
-            return self.importer.get_sheet_data(self.mapping.sheet_name)
+            logger.info(f"Fetching sheet data for sheet: {self.mapping.sheet_name}")
+            logger.info(f"Spreadsheet ID: {self.mapping.spreadsheet_id}")
+            logger.info(f"Header row: {self.mapping.header_row}, Start row: {self.mapping.start_row}")
+            
+            sheet_data = self.importer.get_sheet_data(self.mapping.sheet_name)
+            
+            if not sheet_data:
+                logger.warning("No data returned from get_sheet_data()")
+                return []
+                
+            logger.info(f"Retrieved {len(sheet_data)} rows of data from sheet")
+            
+            # Log first few rows for debugging
+            for i, row in enumerate(sheet_data[:5]):
+                logger.info(f"Row {i+1}: {row}")
+                
+            return sheet_data
+            
         except Exception as e:
-            logger.error(f"خطأ في جلب البيانات من Google Sheets: {str(e)}")
+            logger.error(f"خطأ في جلب البيانات من Google Sheets: {str(e)}", exc_info=True)
             raise
 
     def _get_headers(self) -> List[str]:
@@ -198,6 +234,18 @@ class AdvancedSyncService:
             # تحويل البيانات إلى قاموس
             mapped_data = self._map_row_data(row_data)
             logger.debug(f"[DEBUG] البيانات المعالجة للصف {row_index}: {mapped_data}")
+
+            # Log sheet data info
+            logger.info(f"Sheet data retrieved - Rows: {len(sheet_data) if sheet_data else 0}")
+            if sheet_data and len(sheet_data) > 0:
+                logger.info(f"First row (headers): {sheet_data[0]}")
+                if len(sheet_data) > 1:
+                    logger.info(f"Sample data row: {sheet_data[1]}")
+            
+            # معالجة البيانات باستخدام التعيينات المخصصة
+            logger.info("Starting to process custom data...")
+            result = self.process_custom_data(sheet_data, task)
+            logger.info(f"Custom data processing completed. Result: {result}")
 
             # معالجة العميل
             customer = self._process_customer(mapped_data, row_index, task)

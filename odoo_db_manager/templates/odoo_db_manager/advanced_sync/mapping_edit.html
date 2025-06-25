@@ -191,8 +191,9 @@
                         <label for="default_customer_type" class="form-label">نوع العميل الافتراضي</label>
                         <select class="form-select" id="default_customer_type" name="default_customer_type">
                             <option value="">-- اختر النوع --</option>
-                            <option value="individual" {% if mapping.default_customer_type == 'individual' %}selected{% endif %}>فرد</option>
-                            <option value="company" {% if mapping.default_customer_type == 'company' %}selected{% endif %}>شركة</option>
+                            <option value="retail" {% if mapping.default_customer_type == 'retail' %}selected{% endif %}>أفراد</option>
+                            <option value="wholesale" {% if mapping.default_customer_type == 'wholesale' %}selected{% endif %}>جملة</option>
+                            <option value="corporate" {% if mapping.default_customer_type == 'corporate' %}selected{% endif %}>شركات</option>
                         </select>
                     </div>
                 </div>

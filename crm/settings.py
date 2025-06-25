@@ -440,46 +440,86 @@ SESSION_CLEANUP_SCHEDULE = {
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
 
 # تعطيل التسجيل المفصل في الإنتاج
-if not DEBUG:
-    LOGGING = {
-        'version': 1,
-        'disable_existing_loggers': False,
-        'handlers': {
-            'console': {
-                'class': 'logging.StreamHandler',
-                'level': 'INFO',  # تغيير مستوى التسجيل إلى INFO للحصول على مزيد من المعلومات
-            },
-        },
-        'loggers': {
-            'django': {
-                'handlers': ['console'],
-                'level': 'INFO',
-                'propagate': True,
-            },
-            'django.db.backends': {
-                'handlers': ['console'],
-                'level': 'WARNING',
-                'propagate': False,
-            },
-            'data_management': {  # إضافة تسجيل خاص لتطبيق data_management
-                'handlers': ['console'],
-                'level': 'INFO',
-                'propagate': True,
-            },
-        },
-        'root': {
-            'handlers': ['console'],
+# if not DEBUG:
+#     LOGGING = {
+#         'version': 1,
+#         'disable_existing_loggers': False,
+#         'handlers': {
+#             'console': {
+#                 'class': 'logging.StreamHandler',
+#                 'level': 'INFO',  # تغيير مستوى التسجيل إلى INFO للحصول على مزيد من المعلومات
+#             },
+#         },
+#         'loggers': {
+#             'django': {
+#                 'handlers': ['console'],
+#                 'level': 'INFO',
+#                 'propagate': True,
+#             },
+#             'django.db.backends': {
+#                 'handlers': ['console'],
+#                 'level': 'WARNING',
+#                 'propagate': False,
+#             },
+#             'data_management': {  # إضافة تسجيل خاص لتطبيق data_management
+#                 'handlers': ['console'],
+#                 'level': 'INFO',
+#                 'propagate': True,
+#             },
+#         },
+#         'root': {
+#             'handlers': ['console'],
+#             'level': 'INFO',
+#         },
+#     }
+
+#     # تقليل عدد الاتصالات المتزامنة بقاعدة البيانات
+#     DATABASES['default']['CONN_MAX_AGE'] = 300  # 5 دقائق
+
+#     # تعطيل التصحيح التلقائي للمخطط
+#     DATABASES['default']['AUTOCOMMIT'] = True  # تمكين AUTOCOMMIT لتجنب مشاكل الاتصال
+
+#     # تم نقل إعدادات قاعدة بيانات Railway إلى بداية الملف
+
+# إعدادات اللوج المتقدمة لمزامنة Google Sheets
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
             'level': 'INFO',
         },
-    }
-
-    # تقليل عدد الاتصالات المتزامنة بقاعدة البيانات
-    DATABASES['default']['CONN_MAX_AGE'] = 300  # 5 دقائق
-
-    # تعطيل التصحيح التلقائي للمخطط
-    DATABASES['default']['AUTOCOMMIT'] = True  # تمكين AUTOCOMMIT لتجنب مشاكل الاتصال
-
-    # تم نقل إعدادات قاعدة بيانات Railway إلى بداية الملف
+        'sync_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'media', 'sync_from_sheets.log'),
+            'formatter': 'verbose',
+        },
+    },
+    'formatters': {
+        'verbose': {
+            'format': '[{asctime}] {levelname} {name} {message}',
+            'style': '{',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'odoo_db_manager.google_sync_advanced': {
+            'handlers': ['sync_file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+}
 
 # ======================================
 # Crispy Forms Configuration

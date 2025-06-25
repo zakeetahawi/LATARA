@@ -210,9 +210,9 @@
                                     <label for="default_customer_type" class="form-label">نوع العميل الافتراضي</label>
                                     <select class="form-select" id="default_customer_type" name="default_customer_type">
                                         <option value="">لا يوجد نوع افتراضي</option>
-                                        <option value="retail">أفراد</option>
-                                        <option value="wholesale">جملة</option>
-                                        <option value="corporate">شركات</option>
+                                        <option value="retail" {% if mapping.default_customer_type == 'retail' %}selected{% endif %}>أفراد</option>
+                                        <option value="wholesale" {% if mapping.default_customer_type == 'wholesale' %}selected{% endif %}>جملة</option>
+                                        <option value="corporate" {% if mapping.default_customer_type == 'corporate' %}selected{% endif %}>شركات</option>
                                     </select>
                                     <div class="form-text">سيتم تعيين هذا النوع للعملاء الجدد إذا لم يكن محدد في الجدول</div>
                                 </div>
@@ -921,7 +921,7 @@ function loadReviewData() {
 }
 
 function loadSyncSettings() {
-    // تحقق من عدم وجود إعدادات مزامنة مضافة مسبقاً
+    // تحقق من عدم وجود إعدادات مزامنة مadded مسبقاً
     if (document.querySelector('#step4-content .sync-settings-review')) {
         return; // موجودة بالفعل
     }

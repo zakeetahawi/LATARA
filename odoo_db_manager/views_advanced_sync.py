@@ -482,9 +482,10 @@ def api_run_sync(request, mapping_id):
                 sync_service = AdvancedSyncService(mapping)
                 result = sync_service.sync_from_sheets(task)
 
-                # تحديث حالة المهمة
+                # تحديث حالة المهمة ونتائجها الكاملة
                 task.status = 'completed'
-                task.result = f"تم استيراد {result.get('imported', 0)} سجل وتحديث {result.get('updated', 0)} سجل"
+                task.results = result  # حفظ النتائج الكاملة (stats, errors, ...)
+                task.result = json.dumps(result.get('stats', {}), ensure_ascii=False)
                 task.save()
 
                 # تحديث تاريخ آخر مزامنة
@@ -492,17 +493,17 @@ def api_run_sync(request, mapping_id):
                 mapping.last_sync = timezone.now()
                 mapping.save(update_fields=['last_sync'])
 
+                return JsonResponse({
+                    'success': result.get('success', False),
+                    'task_id': task.id,
+                    'stats': result.get('stats', {}),
+                    'message': 'تم بدء المزامنة بنجاح' if result.get('success') else result.get('error', 'فشل'),
+                    'errors': result.get('stats', {}).get('errors', [])
+                })
             finally:
                 # استعادة المعرف الأصلي
                 if original_id and hasattr(importer.config, 'spreadsheet_id'):
                     importer.config.spreadsheet_id = original_id
-
-            return JsonResponse({
-                'success': True,
-                'task_id': task.id,
-                'message': 'تم بدء المزامنة بنجاح',
-                'result': task.result
-            })
 
         except Exception as sync_error:
             logger.error(f"خطأ في المزامنة: {str(sync_error)}")
@@ -638,43 +639,47 @@ def mapping_update_columns(request, mapping_id):
 @user_passes_test(is_staff_or_superuser)
 @require_http_methods(["POST"])
 def start_sync(request, mapping_id):
-    """بدء المزامنة"""
+    """بدء المزامنة (تشخيص: تتبع التنفيذ خطوة بخطوة)"""
+    import sys
+    print("=== START_SYNC VIEW CALLED ===", file=sys.stderr, flush=True)
     try:
+        print("[SYNC][DEBUG] before get_object_or_404", file=sys.stderr, flush=True)
         mapping = get_object_or_404(GoogleSheetMapping, id=mapping_id)
-
+        print("[SYNC][DEBUG] mapping loaded", file=sys.stderr, flush=True)
         # التحقق من وجود تعيينات الأعمدة
         if not mapping.column_mappings:
+            print("[SYNC][DEBUG] no column_mappings", file=sys.stderr, flush=True)
             return JsonResponse({
                 'success': False,
                 'error': 'يجب تحديد تعيينات الأعمدة أولاً. انتقل إلى صفحة تفاصيل التعيين وقم بتحديد تعيينات الأعمدة.'
             })
-
         # التحقق من صحة التعيينات
         errors = mapping.validate_mappings()
         if errors:
+            print(f"[SYNC][DEBUG] mapping errors: {errors}", file=sys.stderr, flush=True)
             return JsonResponse({
                 'success': False,
                 'error': f"أخطاء في التعيين: {', '.join(errors)}"
             })
-
         # إنشاء مهمة المزامنة
         task = GoogleSyncTask.objects.create(
             mapping=mapping,
             task_type='import',
             created_by=request.user
         )
-
+        print(f"[SYNC][DEBUG] task created: {task.id}", file=sys.stderr, flush=True)
         # بدء المهمة
         task.start_task()
-
+        print("[SYNC][DEBUG] task started", file=sys.stderr, flush=True)
         # تنفيذ المزامنة
         sync_service = AdvancedSyncService(mapping)
+        print("[SYNC][DEBUG] about to call sync_from_sheets", file=sys.stderr, flush=True)
         result = sync_service.sync_from_sheets(task)
-
+        print("[SYNC][DEBUG] sync_from_sheets returned", file=sys.stderr, flush=True)
         if result['success']:
             # تحديث المهمة بالنتائج
             task.mark_completed(result)
-
+            print("[SYNC][DEBUG] task marked completed", file=sys.stderr, flush=True)
             return JsonResponse({
                 'success': True,
                 'task_id': task.id,
@@ -685,13 +690,14 @@ def start_sync(request, mapping_id):
         else:
             # تحديث المهمة بالفشل
             task.mark_failed(result.get('error', 'خطأ غير معروف'))
-
+            print("[SYNC][DEBUG] task marked failed", file=sys.stderr, flush=True)
             return JsonResponse({
                 'success': False,
                 'error': result.get('error', 'خطأ غير معروف')
             })
-
     except Exception as e:
+        import traceback
+        print(f"[SYNC][DEBUG] EXCEPTION: {e}\n{traceback.format_exc()}", file=sys.stderr, flush=True)
         logger.error(f"خطأ في بدء المزامنة: {str(e)}")
         return JsonResponse({
             'success': False,

@@ -9,6 +9,10 @@ from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 import json
+import logging
+import os
+
+logger = logging.getLogger('odoo_db_manager.google_sync_advanced')
 
 
 class GoogleSheetMapping(models.Model):
@@ -18,6 +22,7 @@ class GoogleSheetMapping(models.Model):
     """
 
     FIELD_TYPES = [
+        ('customer_code', 'رقم العميل (كود النظام)'),
         ('customer_name', 'اسم العميل'),
         ('customer_phone', 'رقم هاتف العميل'),
         ('customer_phone2', 'رقم الهاتف الثاني'),
@@ -218,14 +223,16 @@ class GoogleSheetMapping(models.Model):
         return translations.get(str(field_type), str(field_type))
 
     def get_column_mapping(self, column_index_or_name):
-        """الحصول على تعيين عمود معين"""
+        """الحصول على تعيين عمود معين باستخدام رقم العمود فقط"""
         mappings = self.column_mappings or {}
+        # استخدم فقط رقم العمود (index) كسلسلة
         return mappings.get(str(column_index_or_name))
 
     def set_column_mapping(self, column_index_or_name, field_type):
-        """تعيين عمود إلى نوع حقل"""
+        """تعيين عمود إلى نوع حقل باستخدام رقم العمود فقط"""
         if not self.column_mappings:
             self.column_mappings = {}
+        # خزّن التعيين باستخدام رقم العمود كسلسلة
         self.column_mappings[str(column_index_or_name)] = field_type
 
     def get_mapped_fields(self):
@@ -566,6 +573,11 @@ class AdvancedSyncService:
         """
         تنفيذ المزامنة من Google Sheets باستخدام التعيينات المخصصة
         """
+        logger.info(f"SYNC LOG PATH = {os.path.join(settings.BASE_DIR, 'media', 'sync_from_sheets.log')}")
+        print("=== SYNC_FROM_SHEETS CALLED ===", file=sys.stderr, flush=True)
+        logger.info("=== SYNC_FROM_SHEETS CALLED === (triggered from UI or API)")
+        logger.info("=== TEST LOG ENTRY === (should appear in sync_from_sheets.log)")
+
         try:
             from .google_sheets_import import GoogleSheetsImporter
 
@@ -731,34 +743,32 @@ class AdvancedSyncService:
 
     def map_row_to_fields(self, headers, row_data, row_index):
         """
-        تحويل صف البيانات إلى قاموس باستخدام تعيينات الأعمدة
+        تحويل صف البيانات إلى قاموس باستخدام تعيينات الأعمدة بناءً على رقم العمود أو اسم العمود
         """
         try:
             mapped_data = {}
 
             # التأكد من أن الصف يحتوي على بيانات
-            # تجاوز الصفوف الفارغة فقط
-            if not row_data or all(str(cell).strip() == "" for cell in row_data):
+            if not row_data or all(not str(cell).strip() for cell in row_data):
                 return None  # صف فارغ
 
             # معالجة كل عمود
-            for col_index, header in enumerate(headers):
-                if col_index < len(row_data):
-                    cell_value = row_data[col_index]
-
-                    # التحقق من وجود تعيين لهذا العمود
-                    if header in self.mapping.column_mappings:
-                        field_type = self.mapping.column_mappings[header]
-
-                        # تجاهل الأعمدة المحددة للتجاهل
-                        if field_type == 'ignore':
-                            continue
-
-                        # تنظيف وتحويل قيمة الخلية
+            for col_index, cell_value in enumerate(row_data):
+                # جرب أولاً التعيين برقم العمود
+                field_type = self.mapping.get_column_mapping(col_index)
+                # إذا لم يوجد تعيين برقم العمود، جرب باسم العمود من headers
+                if not field_type and headers and col_index < len(headers):
+                    field_type = self.mapping.get_column_mapping(headers[col_index])
+                if field_type and field_type != 'ignore':
+                    # إذا كان الحقل يمثل تاريخًا، مرره على parse_date
+                    if field_type in ['order_date', 'inspection_date', 'installation_date', 'created_at', 'updated_at']:
                         cleaned_value = self.clean_cell_value(cell_value, field_type)
+                        mapped_data[field_type] = self.parse_date(cleaned_value) if cleaned_value else None
+                    else:
+                        mapped_data[field_type] = self.clean_cell_value(cell_value, field_type)
 
-                        if cleaned_value is not None:
-                            mapped_data[field_type] = cleaned_value
+            # طباعة القيم التي تم تعيينها للتشخيص
+            print(f'صف {row_index} - البيانات المعينة: {mapped_data}')
 
             return mapped_data if mapped_data else None
 
@@ -937,8 +947,15 @@ class AdvancedSyncService:
             # إنشاء عميل حتى لو كانت البيانات ناقصة
             # فقط نتأكد من وجود أي بيانات في الصف
             if not customer_data:
-                # إذا لم تكن هناك بيانات معينة، أنشئ سجل فارغ باسم افتراضي
-                customer_data['name'] = f'عميل - صف {row_index}'
+                # إذا لم تكن هناك بيانات معينة، حاول استخراج بيانات من أي حقل
+                for key, value in row_dict.items():
+                    if value and str(value).strip():
+                        # استخدم أول قيمة موجودة كاسم عميل
+                        customer_data['name'] = f'عميل - {str(value).strip()[:50]}'
+                        break
+
+                if not customer_data:
+                    return None
 
             # إذا لم يكن هناك اسم، نضع اسم افتراضي
             if not customer_data.get('name'):
@@ -949,33 +966,46 @@ class AdvancedSyncService:
                 else:
                     customer_data['name'] = f'عميل - صف {row_index}'
 
-            # إنشاء عميل جديد دائمًا بدون التحقق من التكرار أو البحث عن عميل موجود
+            # البحث عن عميل موجود
+            customer = None
+            if customer_data.get('phone'):
+                customer = Customer.objects.filter(phone=customer_data['phone']).first()
+
+            if not customer and customer_data.get('name'):
+                customer = Customer.objects.filter(name=customer_data['name']).first()
+
             created = False
-            if self.mapping.auto_create_customers:
-                # إضافة القيم الافتراضية
-                if self.mapping.default_customer_category:
-                    customer_data['category'] = self.mapping.default_customer_category
-
-                if self.mapping.default_customer_type:
-                    customer_data['customer_type'] = self.mapping.default_customer_type
-
-                if self.mapping.default_branch:
-                    customer_data['branch'] = self.mapping.default_branch
-                else:
-                    # إذا لم يكن هناك فرع افتراضي، حاول جلب أول فرع
-                    try:
-                        from accounts.models import Branch
-                        first_branch = Branch.objects.first()
-                        if first_branch:
-                            customer_data['branch'] = first_branch
-                    except:
-                        pass
-
-                from customers.models import Customer
-                customer = Customer.objects.create(**customer_data)
-                created = True
+            if customer:
+                # تحديث العميل الموجود
+                if self.mapping.update_existing_customers:
+                    for field, value in customer_data.items():
+                        if value:
+                            setattr(customer, field, value)
+                    customer.save()
             else:
-                customer = None
+                # إنشاء عميل جديد
+                if self.mapping.auto_create_customers:
+                    # إضافة القيم الافتراضية
+                    if self.mapping.default_customer_category:
+                        customer_data['category'] = self.mapping.default_customer_category
+
+                    if self.mapping.default_customer_type:
+                        customer_data['customer_type'] = self.mapping.default_customer_type
+
+                    if self.mapping.default_branch:
+                        customer_data['branch'] = self.mapping.default_branch
+                    else:
+                        # إذا لم يكن هناك فرع افتراضي، حاول جلب أول فرع
+                        try:
+                            from accounts.models import Branch
+                            first_branch = Branch.objects.first()
+                            if first_branch:
+                                customer_data['branch'] = first_branch
+                        except:
+                            pass
+
+                    customer = Customer.objects.create(**customer_data)
+                    created = True
 
             return {
                 'instance': customer,
@@ -984,80 +1014,118 @@ class AdvancedSyncService:
 
         except Exception as e:
             print(f'خطأ في معالجة بيانات العميل في الصف {row_index}: {str(e)}')
-            # إنشاء سجل وهمي لاحتساب الصف حتى لو فشل الإنشاء
-            return {
-                'instance': None,
-                'created': True,
-                'error': str(e)
-            }
+            return None
 
     def process_order_data(self, row_dict, customer, row_index):
         """
         معالجة بيانات الطلب
+        إذا كان force_create=True سيتم إنشاء طلب جديد دائماً.
         """
         try:
             from orders.models import Order
 
-            # الحقول المطلوبة للطلب
-            order_data = {
-                'customer': customer
-            }
-
-            # المبلغ الإجمالي
-            if 'total_amount' in row_dict:
-                order_data['total_amount'] = row_dict['total_amount']
-
+            order_data = {}
             # المبلغ المدفوع
             if 'paid_amount' in row_dict:
                 order_data['paid_amount'] = row_dict['paid_amount']
-
             # عدد النوافذ
             if 'windows_count' in row_dict:
                 order_data['windows_count'] = row_dict['windows_count']
-
             # تاريخ الطلب
             if 'order_date' in row_dict:
-                order_data['order_date'] = row_dict['order_date']
+                parsed_order_date = self.parse_date(row_dict['order_date'])
+                if parsed_order_date:
+                    order_data['order_date'] = parsed_order_date
             elif self.mapping.use_current_date_as_created:
                 from datetime import datetime
                 order_data['order_date'] = datetime.now().date()
-
             # الفرع
             if self.mapping.default_branch:
                 order_data['branch'] = self.mapping.default_branch
-
-            # إنشاء طلب حتى لو لم تكن هناك مبالغ أو عدد نوافذ
+            # --- إضافة الحقول المميزة للبحث ---
+            for key in ['order_number', 'invoice_number', 'contract_number']:
+                if key in row_dict and row_dict[key]:
+                    order_data[key] = row_dict[key]
             # فقط نتأكد من وجود عميل
             if not customer:
                 return None
-
-            # البحث عن طلب موجود
-            order = None
-            if order_data.get('order_date'):
-                order = Order.objects.filter(
-                    customer=customer,
-                    order_date=order_data['order_date']
-                ).first()
-
+            # لوج تشخيصي للقيم المستخدمة في البحث
+            print(f"[SYNC][Order Search] order_number={order_data.get('order_number')}, invoice_number={order_data.get('invoice_number')}, contract_number={order_data.get('contract_number')}, customer={customer}")
+            # إذا كان force_create=True أنشئ دائماً طلب جديد
             created = False
-            if order:
-                # تحديث الطلب الموجود
-                if self.mapping.update_existing_orders:
-                    for field, value in order_data.items():
-                        if value and field != 'customer':
-                            setattr(order, field, value)
-                    order.save()
+            if force_create:
+                order_data['customer'] = customer
+                order = Order.objects.create(**order_data)
+                created = True
+                # إعادة تحميل الطلب من قاعدة البيانات بعد الحفظ
+                from orders.models import Order as OrderModel
+                try:
+                    order = OrderModel.objects.get(pk=order.pk)
+                    order.refresh_from_db()
+                    if order.pk and OrderModel.objects.filter(pk=order.pk).exists():
+                        if hasattr(order, 'calculate_final_price'):
+                            order.calculate_final_price()
+                        else:
+                            print(f"Order instance has no calculate_final_price method, skipping final price calculation.")
+                    else:
+                        print(f"Order instance with pk={order.pk} not found in DB, skipping final price calculation.")
+                except Exception as calc_err:
+                    import traceback
+                    print(f"Error calculating final price (create): {calc_err}\n{traceback.format_exc()}")
             else:
-                # إنشاء طلب جديد
-                if self.mapping.auto_create_orders:
-                    order = Order.objects.create(**order_data)
-                    created = True
-
+                # البحث الذكي عن الطلب الموجود (كما كان سابقاً)
+                order = None
+                if 'order_number' in order_data and order_data['order_number']:
+                    order = Order.objects.filter(order_number=order_data['order_number']).first()
+                if not order and 'invoice_number' in order_data and order_data['invoice_number']:
+                    order = Order.objects.filter(invoice_number=order_data['invoice_number'], customer=customer).first()
+                if not order and 'contract_number' in order_data and order_data['contract_number']:
+                    order = Order.objects.filter(contract_number=order_data['contract_number'], customer=customer).first()
+                if not order and order_data.get('order_date'):
+                    order = Order.objects.filter(customer=customer, order_date=order_data['order_date']).first()
+                if order:
+                    if self.mapping.update_existing_orders:
+                        for field, value in order_data.items():
+                            if value and field != 'customer':
+                                setattr(order, field, value)
+                        order.save()
+                        from orders.models import Order as OrderModel
+                        try:
+                            order = OrderModel.objects.get(pk=order.pk)
+                            order.refresh_from_db()
+                            if order.pk and OrderModel.objects.filter(pk=order.pk).exists():
+                                if hasattr(order, 'calculate_final_price'):
+                                    order.calculate_final_price()
+                                else:
+                                    print(f"Order instance has no calculate_final_price method, skipping final price calculation.")
+                            else:
+                                print(f"Order instance with pk={order.pk} not found in DB, skipping final price calculation.")
+                        except Exception as calc_err:
+                            import traceback
+                            print(f"Error calculating final price (update): {calc_err}\n{traceback.format_exc()}")
+                else:
+                    if self.mapping.auto_create_orders:
+                        order_data['customer'] = customer
+                        order = Order.objects.create(**order_data)
+                        created = True
+                        from orders.models import Order as OrderModel
+                        try:
+                            order = OrderModel.objects.get(pk=order.pk)
+                            order.refresh_from_db()
+                            if order.pk and OrderModel.objects.filter(pk=order.pk).exists():
+                                if hasattr(order, 'calculate_final_price'):
+                                    order.calculate_final_price()
+                                else:
+                                    print(f"Order instance has no calculate_final_price method, skipping final price calculation.")
+                            else:
+                                print(f"Order instance with pk={order.pk} not found in DB, skipping final price calculation.")
+                        except Exception as calc_err:
+                            import traceback
+                            print(f"Error calculating final price (create): {calc_err}\n{traceback.format_exc()}")
             return {
                 'instance': order,
                 'created': created
             } if order else None
-
         except Exception as e:
             print(f'خطأ في معالجة بيانات الطلب في الصف {row_index}: {str(e)}')
             return None
@@ -1070,26 +1138,139 @@ class AdvancedSyncService:
             # التحقق من وجود تاريخ المعاينة
             if 'inspection_date' not in row_dict or not row_dict['inspection_date']:
                 return None
-
+            # تمرير تاريخ المعاينة على parse_date
+            parsed_inspection_date = self.parse_date(row_dict['inspection_date'])
+            if not parsed_inspection_date:
+                return None
             # هنا يمكن إضافة معالجة المعاينة إذا كان لديك نموذج Inspection
             # from inspections.models import Inspection
-
             return None
-
         except Exception as e:
             print(f'خطأ في معالجة بيانات المعاينة في الصف {row_index}: {str(e)}')
             return None
 
-    def process_installation_data(self, row_dict, order, row_index):
+    def clean_cell_value(self, value, field_type=None):
         """
-        معالجة بيانات التركيب
+        تنظيف قيمة الخلية: إزالة الفراغات من البداية والنهاية فقط، وإرجاع القيمة كما هي.
         """
-        try:
-            # هنا يمكن إضافة معالجة التركيب إذا كان لديك نموذج Installation
-            # from installations.models import Installation
+        if isinstance(value, str):
+            return value.strip()
+        return value
 
+    def parse_date(self, value):
+        """
+        تحويل التاريخ من أي صيغة شائعة (DD-MM-YYYY أو DD/MM/YYYY أو YYYY-MM-DD) إلى كائن تاريخ أو None.
+        """
+        from datetime import datetime
+        if not value or not str(value).strip():
             return None
+        value = str(value).strip()
+        for fmt in ("%d-%m-%Y", "%d/%m/%Y", "%Y-%m-%d", "%Y/%m/%d"):
+            try:
+                return datetime.strptime(value, fmt).date()
+            except Exception:
+                continue
+        # إذا لم تنجح أي صيغة، أرجع None
+        return None
 
+    def process_row_data(self, row_dict, row_index, task):
+        """
+        معالجة صف واحد: عميل + طلب + معاينة + تركيب (حسب الإعدادات)
+        منطق العميل:
+        - إذا وُجد عميل بنفس الاسم فقط (حتى لو رقم الهاتف مختلف):
+            - إذا كان رقم الهاتف في الصف الجديد مختلف عن أي عميل بنفس الاسم → يتم إنشاء عميل جديد.
+            - إذا كان رقم الهاتف في الصف الجديد مطابق لأحد العملاء بنفس الاسم → استخدم العميل الموجود.
+            - إذا كان رقم الهاتف في الصف الجديد فارغ → يتم إنشاء عميل جديد دائمًا.
+        - إذا لم يوجد عميل بنفس الاسم: يتم إنشاء عميل جديد.
+        """
+        stats = {
+            'customers_created': 0,
+            'customers_updated': 0,
+            'orders_created': 0,
+            'orders_updated': 0,
+            'inspections_created': 0,
+            'installations_created': 0,
+            'warnings': []
+        }
+        customer = None
+        order = None
+        try:
+            from customers.models import Customer
+            customer = None
+            found_by = None
+            # طباعة محتوى الصف وقاموس البيانات الناتج للتشخيص
+            print(f"[SYNC][DEBUG] Row {row_index} raw dict: {row_dict}")
+            logger.info(f"[SYNC][DEBUG] Row {row_index} raw dict: {row_dict}")
+            name = row_dict.get('customer_name', '').strip() if 'customer_name' in row_dict else ''
+            phone = row_dict.get('customer_phone', '').strip() if 'customer_phone' in row_dict else ''
+            if name:
+                customers_qs = Customer.objects.filter(name=name)
+                if not customers_qs.exists():
+                    # لا يوجد عميل بنفس الاسم: أنشئ عميل جديد
+                    customer = Customer.objects.create(
+                        name=name,
+                        phone=phone,
+                        customer_type=self.mapping.default_customer_type if self.mapping.default_customer_type else None,
+                        category=self.mapping.default_customer_category if self.mapping.default_customer_category else None,
+                        branch=self.mapping.default_branch if self.mapping.default_branch else None
+                    )
+                    stats['customers_created'] += 1
+                    print(f"[SYNC][Customer] Row {row_index}: Created new customer (new name): {customer}")
+                    logger.info(f"[SYNC][Customer] Row {row_index}: Created new customer (new name): {customer}")
+                else:
+                    # يوجد عميل بنفس الاسم
+                    if not phone:
+                        # الهاتف فارغ: استخدم أول عميل بنفس الاسم
+                        customer = customers_qs.first()
+                        found_by = 'name_only'
+                        print(f"[SYNC][Customer] Row {row_index}: Used first customer with same name (empty phone): {customer}")
+                        logger.info(f"[SYNC][Customer] Row {row_index}: Used first customer with same name (empty phone): {customer}")
+                    else:
+                        customer_exact = customers_qs.filter(phone=phone).first()
+                        if customer_exact:
+                            customer = customer_exact
+                            found_by = 'name+phone'
+                            print(f"[SYNC][Customer] Row {row_index}: Used existing customer with same name and phone: {customer}")
+                            logger.info(f"[SYNC][Customer] Row {row_index}: Used existing customer with same name and phone: {customer}")
+                        else:
+                            # الهاتف مختلف: أنشئ عميل جديد
+                            customer = Customer.objects.create(
+                                name=name,
+                                phone=phone,
+                                customer_type=self.mapping.default_customer_type if self.mapping.default_customer_type else None,
+                                category=self.mapping.default_customer_category if self.mapping.default_customer_category else None,
+                                branch=self.mapping.default_branch if self.mapping.default_branch else None
+                            )
+                            stats['customers_created'] += 1
+                            print(f"[SYNC][Customer] Row {row_index}: Created new customer (duplicate name, different phone): {customer}")
+                            logger.info(f"[SYNC][Customer] Row {row_index}: Created new customer (duplicate name, different phone): {customer}")
+                # معالجة الطلب: ابحث أولاً، إذا لم يوجد أنشئ جديد (لا تكرر الطلبات)
+                order_result = None
+                if customer:
+                    order_result = self.process_order_data(row_dict, customer, row_index, force_create=False)
+                if order_result:
+                    order = order_result.get('instance')
+                    if order_result.get('created'):
+                        stats['orders_created'] += 1
+                        print(f"[SYNC][Order] Row {row_index}: Created new order: {order}")
+                        logger.info(f"[SYNC][Order] Row {row_index}: Created new order: {order}")
+                    else:
+                        stats['orders_updated'] += 1
+                        print(f"[SYNC][Order] Row {row_index}: Updated order: {order}")
+                        logger.info(f"[SYNC][Order] Row {row_index}: Updated order: {order}")
+                else:
+                    print(f"[SYNC][Order] Row {row_index}: No order created or updated.")
+                    logger.info(f"[SYNC][Order] Row {row_index}: No order created or updated.")
+                # معالجة المعاينة إذا لزم الأمر
+                if self.mapping.auto_create_inspections and order:
+                    inspection_result = self.process_inspection_data(row_dict, order, row_index)
+                    if inspection_result:
+                        stats['inspections_created'] += 1
+            else:
+                # اسم العميل فارغ: تجاهل الصف
+                stats['warnings'].append(f"Row {row_index}: customer_name is empty, skipping row.")
+                print(f"[SYNC][Customer] Row {row_index}: customer_name is empty, skipping row.")
+                logger.info(f"[SYNC][Customer] Row {row_index}: customer_name is empty, skipping row.")
         except Exception as e:
             print(f'خطأ في معالجة بيانات التركيب في الصف {row_index}: {str(e)}')
             return None

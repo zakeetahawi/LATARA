@@ -146,6 +146,38 @@
             </div>
         </div>
     </form>
+
+    <!-- القيم الافتراضية للحقول المفقودة -->
+    <div class="form-section mt-4">
+        <h5 class="section-title">
+            <i class="fas fa-sliders-h"></i>
+            القيم الافتراضية
+        </h5>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="default_customer_category" class="form-label">تصنيف العميل الافتراضي</label>
+                    <select class="form-select" id="default_customer_category" name="default_customer_category">
+                        <option value="">اختر تصنيف...</option>
+                        {% for cat in customer_categories %}
+                        <option value="{{ cat.id }}" {% if mapping.default_customer_category and mapping.default_customer_category.id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="default_branch" class="form-label">الفرع الافتراضي</label>
+                    <select class="form-select" id="default_branch" name="default_branch">
+                        <option value="">اختر فرع...</option>
+                        {% for branch in branches %}
+                        <option value="{{ branch.id }}" {% if mapping.default_branch and mapping.default_branch.id == branch.id %}selected{% endif %}>{{ branch.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 

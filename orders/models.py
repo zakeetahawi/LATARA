@@ -166,18 +166,22 @@ class Order(models.Model):
             # Validate delivery address for home delivery
             if self.delivery_type == 'home' and not self.delivery_address:
                 raise models.ValidationError('عنوان التسليم مطلوب لخدمة التوصيل للمنزل')
-            # حساب السعر النهائي
-            if not self.final_price:
-                try:
-                    self.calculate_final_price()
-                except Exception as e:
-                    print(f"Error calculating final price: {e}")
-                    self.final_price = 0
             # حفظ الطلب أولاً للحصول على مفتاح أساسي
             super().save(*args, **kwargs)
             # التأكد من أن الطلب تم حفظه بنجاح
             if not self.pk:
                 raise models.ValidationError('فشل في حفظ الطلب: لم يتم إنشاء مفتاح أساسي')
+            # حساب السعر النهائي بعد الحفظ (بعد وجود pk)
+            try:
+                final_price = self.calculate_final_price()
+                if self.final_price != final_price:
+                    self.final_price = final_price
+                    # حفظ التغيير في السعر النهائي فقط إذا تغير
+                    super().save(update_fields=['final_price'])
+            except Exception as e:
+                print(f"Error calculating final price after save: {e}")
+                self.final_price = 0
+                super().save(update_fields=['final_price'])
             print(f"Successfully saved order {self.order_number} with primary key {self.pk}")
         except Exception as e:
             # تسجيل الخطأ

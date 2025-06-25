@@ -231,6 +231,9 @@
 {% endblock %}
 
 {% block content %}
+<!-- إضافة csrf token مخفي للصفحة ليستخدمه الجافاسكريبت -->
+<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+
 <div class="container-fluid">
     <!-- شريط الأدوات -->
     <div class="toolbar">
@@ -349,6 +352,24 @@
                         </div>
                     </div>
                     {% endif %}
+
+                    <!-- ملخص آخر مزامنة -->
+                    {% with last_task=mapping.sync_tasks.first %}
+                    {% if last_task %}
+                    <div class="info-item" style="margin-top:10px;">
+                        <span class="info-label">ملخص آخر مزامنة</span>
+                        <div class="info-value">
+                            <span class="badge badge-info">التاريخ: {{ last_task.completed_at|date:"Y-m-d H:i"|default:"-" }}</span>
+                            <span class="badge badge-success">العملاء الجدد: {{ last_task.results.stats.customers_created|default:0 }}</span>
+                            <span class="badge badge-warning">العملاء المحدثون: {{ last_task.results.stats.customers_updated|default:0 }}</span>
+                            <span class="badge badge-success">الطلبات الجديدة: {{ last_task.results.stats.orders_created|default:0 }}</span>
+                            <span class="badge badge-warning">الطلبات المحدثة: {{ last_task.results.stats.orders_updated|default:0 }}</span>
+                            <span class="badge badge-danger">الأخطاء: {{ last_task.results.stats.errors|length|default:0 }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+                    <!-- نهاية ملخص آخر مزامنة -->
 
                     <!-- أزرار الإجراءات -->
                     <div class="mapping-actions">
