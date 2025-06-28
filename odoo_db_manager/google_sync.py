@@ -1,5 +1,6 @@
 """
 وحدة مزامنة بيانات التطبيق مع Google Sheets
+Google Sheets Sync Module for Application Data
 """
 
 import os
@@ -7,15 +8,17 @@ import json
 import logging
 import datetime
 from pathlib import Path
+from typing import Dict, List, Any, Optional
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from django.utils import timezone
 from django.db import connection
 from django.apps import apps
+from django.core.exceptions import ValidationError
 
 # إعداد التسجيل
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('odoo_db_manager.google_sync')
 
 class GoogleSyncConfig(models.Model):
     """إعدادات مزامنة غوغل"""
@@ -336,78 +339,97 @@ def sync_branches(service, spreadsheet_id):
         return {'status': 'error', 'message': message}
 
 
-def create_sheets_service(credentials):
+def create_sheets_service(credentials) -> Optional[Any]:
     """
-    إنشاء خدمة Google Sheets
+    إنشاء خدمة Google Sheets مع معالجة محسنة للأخطاء
     
     Args:
-        credentials: بيانات الاعتماد
+        credentials: بيانات الاعتماد (dict أو str)
     
     Returns:
-        service: خدمة Google Sheets
+        service: خدمة Google Sheets أو None في حالة الفشل
     """
     try:
         from googleapiclient.discovery import build
         from google.oauth2 import service_account
-        import json
+        from googleapiclient.errors import HttpError
         
         if not credentials:
-            raise ValueError("لم يتم توفير بيانات الاعتماد")
+            logger.error("لم يتم توفير بيانات الاعتماد")
+            return None
 
         # التحقق من نوع بيانات الاعتماد
         if isinstance(credentials, dict):
             if credentials.get('type') != 'service_account':
-                raise ValueError("بيانات الاعتماد ليست من نوع حساب الخدمة")
+                logger.error("بيانات الاعتماد ليست من نوع حساب الخدمة")
+                return None
 
             # التحقق من وجود الحقول المطلوبة
             required_fields = ['client_email', 'private_key', 'project_id']
             missing_fields = [field for field in required_fields if field not in credentials]
             if missing_fields:
-                raise ValueError(f"حقول مفقودة في بيانات الاعتماد: {', '.join(missing_fields)}")
+                logger.error(f"حقول مفقودة في بيانات الاعتماد: {', '.join(missing_fields)}")
+                return None
 
             try:
                 creds = service_account.Credentials.from_service_account_info(
                     credentials,
                     scopes=['https://www.googleapis.com/auth/spreadsheets']
                 )
+                logger.info("تم إنشاء بيانات الاعتماد من المعلومات المقدمة بنجاح")
             except Exception as e:
-                raise ValueError(f"فشل إنشاء بيانات الاعتماد من المعلومات المقدمة: {str(e)}")
+                logger.error(f"فشل إنشاء بيانات الاعتماد من المعلومات المقدمة: {str(e)}")
+                return None
 
         elif isinstance(credentials, str):
             if not os.path.exists(credentials):
-                raise ValueError(f"ملف بيانات الاعتماد غير موجود: {credentials}")
+                logger.error(f"ملف بيانات الاعتماد غير موجود: {credentials}")
+                return None
 
             try:
                 creds = service_account.Credentials.from_service_account_file(
                     credentials,
                     scopes=['https://www.googleapis.com/auth/spreadsheets']
                 )
+                logger.info("تم قراءة بيانات الاعتماد من الملف بنجاح")
             except Exception as e:
-                raise ValueError(f"فشل قراءة بيانات الاعتماد من الملف: {str(e)}")
+                logger.error(f"فشل قراءة بيانات الاعتماد من الملف: {str(e)}")
+                return None
         else:
-            raise ValueError("نوع بيانات الاعتماد غير مدعوم")
+            logger.error("نوع بيانات الاعتماد غير مدعوم")
+            return None
 
         try:
             # إنشاء خدمة Google Sheets
             service = build('sheets', 'v4', credentials=creds)
-
-            # اختبار الاتصال لتأكيد صحة بيانات الاعتماد
-            service.spreadsheets().get(spreadsheetId='1').execute()
+            logger.info("تم إنشاء خدمة Google Sheets بنجاح")
+            
+            # اختبار الاتصال بمعرف وهمي
+            try:
+                service.spreadsheets().get(spreadsheetId='test_connection').execute()
+            except HttpError as e:
+                if e.resp.status == 404:
+                    # هذا متوقع - المعرف الوهمي غير موجود
+                    logger.info("تم اختبار الاتصال بنجاح")
+                    return service
+                elif e.resp.status == 403:
+                    logger.error("مشكلة في الصلاحيات - تأكد من مشاركة جدول البيانات مع حساب الخدمة")
+                    return None
+                else:
+                    logger.error(f"خطأ في اختبار الاتصال: {str(e)}")
+                    return None
             
             return service
 
         except Exception as e:
-            error_msg = str(e).lower()
-            if 'not found' in error_msg:
-                # هذا متوقع لأننا استخدمنا معرف غير موجود للاختبار
-                return service
-            elif 'permission' in error_msg:
-                raise ValueError("تأكد من مشاركة جدول البيانات مع البريد الإلكتروني لحساب الخدمة")
-            else:
-                raise ValueError(f"فشل اختبار الاتصال: {str(e)}")
+            logger.error(f"فشل إنشاء خدمة Google Sheets: {str(e)}")
+            return None
 
+    except ImportError as e:
+        logger.error(f"مكتبات Google API غير مثبتة: {str(e)}")
+        return None
     except Exception as e:
-        logger.error(f"حدث خطأ أثناء إنشاء خدمة Google Sheets: {str(e)}")
+        logger.error(f"حدث خطأ غير متوقع أثناء إنشاء خدمة Google Sheets: {str(e)}")
         return None
 
 
@@ -556,18 +578,22 @@ def sync_inspections(service, spreadsheet_id):
     try:
         logger.info("بدء مزامنة المعاينات")
         Inspection = apps.get_model('inspections', 'Inspection')
-        inspections = Inspection.objects.all()
+        inspections = Inspection.objects.select_related('order', 'customer', 'inspector', 'responsible_employee').all()
         data = [[
             'رقم العقد', 'رقم الطلب', 'نوع الطلب', 'العميل', 'تاريخ الطلب', 'تاريخ التنفيذ', 'عدد الشبابيك', 'فني المعاينة', 'البائع', 'ملف المعاينة', 'رابط ملف جوجل درايف', 'اسم ملف جوجل درايف', 'الحالة', 'النتيجة', 'الإجراءات'
         ]]
         count = 0
         for inspection in inspections:
-            file_link = inspection.google_drive_file_url if getattr(inspection, 'google_drive_file_url', None) else ''
+            file_link = getattr(inspection, 'google_drive_file_url', '')
             order_number = str(getattr(inspection, 'order_id', ''))
+            contract_number = getattr(inspection.order, 'contract_number', '') if inspection.order else ''
             order_type = 'معاينة'
-            customer_name = inspection.customer.name if inspection.customer else ''
+            customer_name = getattr(inspection.customer, 'name', '') if inspection.customer else ''
             request_date = inspection.request_date.strftime('%Y-%m-%d') if getattr(inspection, 'request_date', None) else ''
             scheduled_date = inspection.scheduled_date.strftime('%Y-%m-%d') if getattr(inspection, 'scheduled_date', None) else ''
+            # إضافة رقم العقد إلى سجل المعاينة إذا لم يكن موجودًا
+            if hasattr(inspection, 'contract_number') and not contract_number:
+                contract_number = getattr(inspection, 'contract_number', '')
             windows_count = inspection.windows_count if getattr(inspection, 'windows_count', None) is not None else ''
             inspector_name = ''
             if hasattr(inspection, 'inspector') and inspection.inspector:
@@ -577,11 +603,11 @@ def sync_inspections(service, spreadsheet_id):
                 responsible_employee_name = getattr(inspection.responsible_employee, 'name', str(inspection.responsible_employee))
             inspection_file_url = inspection.inspection_file.url if getattr(inspection, 'inspection_file', None) else ''
             google_drive_file_name = inspection.google_drive_file_name if getattr(inspection, 'google_drive_file_name', None) else ''
-            status = inspection.status if getattr(inspection, 'status', None) else ''
-            result = inspection.result if getattr(inspection, 'result', None) else ''
-            notes = inspection.notes if getattr(inspection, 'notes', None) else ''
+            status = getattr(inspection, 'status', '')
+            result = getattr(inspection, 'result', '')
+            notes = getattr(inspection, 'notes', '')
             data.append([
-                str(inspection.id), order_number, order_type, customer_name, request_date, scheduled_date, windows_count,
+                contract_number, order_number, order_type, customer_name, request_date, scheduled_date, windows_count,
                 inspector_name, responsible_employee_name, inspection_file_url, file_link, google_drive_file_name, status, result, notes
             ])
             count += 1
@@ -611,6 +637,11 @@ def sync_orders(service, spreadsheet_id):
                 header.append(f"{f}_display")
             else:
                 header.append(f)
+        # إضافة اسم الفرع وكود الفرع إذا لم يكونا موجودين
+        if "branch_name" not in header:
+            header.append("branch_name")
+        if "branch_code" not in header:
+            header.append("branch_code")
         data = [header]
         for order in orders:
             row = []
@@ -629,6 +660,12 @@ def sync_orders(service, spreadsheet_id):
                         row.append('')
                 else:
                     row.append(str(value) if value is not None else '')
+            # إضافة اسم الفرع وكود الفرع
+            branch = getattr(order, 'branch', None)
+            branch_name = getattr(branch, 'name', '') if branch else ''
+            branch_code = getattr(branch, 'code', '') if branch and hasattr(branch, 'code') else ''
+            row.append(branch_name)
+            row.append(branch_code)
             data.append(row)
         sheet_name = 'الطلبات'
         result = update_sheet(service, spreadsheet_id, sheet_name, data)
@@ -740,23 +777,42 @@ def sync_settings(service, spreadsheet_id):
         return {'status': 'error', 'message': message}
 
 
-def update_sheet(service, spreadsheet_id, sheet_name, data):
+def update_sheet(service, spreadsheet_id: str, sheet_name: str, data: List[List[str]]) -> int:
     """
-    تحديث ورقة عمل في Google Sheets
+    تحديث ورقة عمل في Google Sheets مع معالجة محسنة للأخطاء
     
     Args:
         service: خدمة Google Sheets
         spreadsheet_id: معرف جدول البيانات
         sheet_name: اسم ورقة العمل
-        data: البيانات
+        data: البيانات (قائمة من القوائم)
     
     Returns:
-        dict: نتيجة التحديث
+        int: عدد الصفوف المحدثة
     """
     try:
+        from googleapiclient.errors import HttpError
+        
+        if not data or len(data) == 0:
+            logger.warning(f"لا توجد بيانات لتحديث ورقة: {sheet_name}")
+            return 0
+            
         logger.info(f"بدء تحديث ورقة: {sheet_name} بعدد صفوف: {len(data)}")
+        
         # التحقق من وجود ورقة العمل
-        sheet_metadata = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+        try:
+            sheet_metadata = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+        except HttpError as e:
+            if e.resp.status == 404:
+                logger.error(f"جدول البيانات غير موجود: {spreadsheet_id}")
+                return 0
+            elif e.resp.status == 403:
+                logger.error("ليس لديك صلاحية للوصول إلى جدول البيانات")
+                return 0
+            else:
+                logger.error(f"خطأ في الوصول إلى جدول البيانات: {str(e)}")
+                return 0
+        
         sheets = sheet_metadata.get('sheets', [])
         sheet_exists = False
         sheet_id = None
@@ -770,110 +826,137 @@ def update_sheet(service, spreadsheet_id, sheet_name, data):
         # إنشاء ورقة العمل إذا لم تكن موجودة
         if not sheet_exists:
             logger.info(f"إنشاء ورقة جديدة: {sheet_name}")
-            request = {
-                'addSheet': {
-                    'properties': {
-                        'title': sheet_name
+            try:
+                request = {
+                    'addSheet': {
+                        'properties': {
+                            'title': sheet_name
+                        }
                     }
                 }
-            }
-            
-            response = service.spreadsheets().batchUpdate(
-                spreadsheetId=spreadsheet_id,
-                body={'requests': [request]}
-            ).execute()
-            
-            sheet_id = response.get('replies', [])[0].get('addSheet', {}).get('properties', {}).get('sheetId')
+                
+                response = service.spreadsheets().batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body={'requests': [request]}
+                ).execute()
+                
+                sheet_id = response.get('replies', [])[0].get('addSheet', {}).get('properties', {}).get('sheetId')
+                logger.info(f"تم إنشاء ورقة جديدة: {sheet_name} بمعرف: {sheet_id}")
+            except Exception as e:
+                logger.error(f"فشل إنشاء ورقة جديدة: {sheet_name} - {str(e)}")
+                return 0
         
         # تحديث البيانات
-        range_name = f"{sheet_name}!A1"
-        body = {
-            'values': data
-        }
-        
-        result = service.spreadsheets().values().update(
-            spreadsheetId=spreadsheet_id,
-            range=range_name,
-            valueInputOption='RAW',
-            body=body
-        ).execute()
-        logger.info(f"تم تحديث ورقة: {sheet_name} بنجاح")
+        try:
+            range_name = f"{sheet_name}!A1"
+            body = {
+                'values': data
+            }
+            
+            result = service.spreadsheets().values().update(
+                spreadsheetId=spreadsheet_id,
+                range=range_name,
+                valueInputOption='RAW',
+                body=body
+            ).execute()
+            
+            logger.info(f"تم تحديث ورقة: {sheet_name} بنجاح")
+            
+        except Exception as e:
+            logger.error(f"فشل تحديث البيانات في ورقة: {sheet_name} - {str(e)}")
+            return 0
         
         # تنسيق الورقة
-        if sheet_id:
+        if sheet_id is not None:
             try:
-                requests = [
-                    # تنسيق الصف الأول (العناوين)
-                    {
-                        'repeatCell': {
-                            'range': {
-                                'sheetId': sheet_id,
-                                'startRowIndex': 0,
-                                'endRowIndex': 1
-                            },
-                            'cell': {
-                                'userEnteredFormat': {
-                                    'backgroundColor': {
-                                        'red': 0.0,
-                                        'green': 0.4,
-                                        'blue': 0.7
-                                    },
-                                    'textFormat': {
-                                        'foregroundColor': {
-                                            'red': 1.0,
-                                            'green': 1.0,
-                                            'blue': 1.0
-                                        },
-                                        'bold': True
-                                    },
-                                    'horizontalAlignment': 'CENTER',
-                                    'verticalAlignment': 'MIDDLE'
-                                }
-                            },
-                            'fields': 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
-                        }
-                    },
-                    # تنسيق الخلايا
-                    {
-                        'updateSheetProperties': {
-                            'properties': {
-                                'sheetId': sheet_id,
-                                'gridProperties': {
-                                    'frozenRowCount': 1
-                                }
-                            },
-                            'fields': 'gridProperties.frozenRowCount'
-                        }
-                    }
-                ]
-                
-                # إضافة طلب تعديل حجم الأعمدة فقط إذا كانت البيانات تحتوي على صفوف
-                if data and len(data) > 0 and len(data[0]) > 0:
-                    requests.append({
-                        'autoResizeDimensions': {
-                            'dimensions': {
-                                'sheetId': sheet_id,
-                                'dimension': 'COLUMNS',
-                                'startIndex': 0,
-                                'endIndex': len(data[0])
-                            }
-                        }
-                    })
-                
-                service.spreadsheets().batchUpdate(
-                    spreadsheetId=spreadsheet_id,
-                    body={'requests': requests}
-                ).execute()
-                logger.info(f"تم تنسيق ورقة: {sheet_name} بنجاح")
+                _format_sheet(service, spreadsheet_id, sheet_id, sheet_name, data)
             except Exception as format_error:
                 logger.warning(f"حدث خطأ أثناء تنسيق ورقة: {sheet_name} - {str(format_error)}")
         
         updated_rows = result.get('updatedRows', 0)
         if updated_rows == 0:
             # إذا لم يتم إرجاع عدد الصفوف المحدثة، استخدم عدد الصفوف في البيانات كبديل
-            updated_rows = len(data) - 1  # خصم صف العناوين
+            updated_rows = max(0, len(data) - 1)  # خصم صف العناوين
         
+        logger.info(f"تم تحديث {updated_rows} صف في ورقة: {sheet_name}")
         return updated_rows
+        
     except Exception as e:
-        logger.error(f"حدث خطأ أثناء تحديث ورقة: {sheet_name} - {str(e)}")
+        logger.error(f"حدث خطأ غير متوقع أثناء تحديث ورقة: {sheet_name} - {str(e)}")
         return 0
+
+
+def _format_sheet(service, spreadsheet_id: str, sheet_id: int, sheet_name: str, data: List[List[str]]):
+    """
+    تنسيق ورقة العمل (دالة مساعدة)
+    """
+    try:
+        requests = [
+            # تنسيق الصف الأول (العناوين)
+            {
+                'repeatCell': {
+                    'range': {
+                        'sheetId': sheet_id,
+                        'startRowIndex': 0,
+                        'endRowIndex': 1
+                    },
+                    'cell': {
+                        'userEnteredFormat': {
+                            'backgroundColor': {
+                                'red': 0.2,
+                                'green': 0.6,
+                                'blue': 0.9
+                            },
+                            'textFormat': {
+                                'foregroundColor': {
+                                    'red': 1.0,
+                                    'green': 1.0,
+                                    'blue': 1.0
+                                },
+                                'bold': True,
+                                'fontSize': 11
+                            },
+                            'horizontalAlignment': 'CENTER',
+                            'verticalAlignment': 'MIDDLE'
+                        }
+                    },
+                    'fields': 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
+                }
+            },
+            # تجميد الصف الأول
+            {
+                'updateSheetProperties': {
+                    'properties': {
+                        'sheetId': sheet_id,
+                        'gridProperties': {
+                            'frozenRowCount': 1
+                        }
+                    },
+                    'fields': 'gridProperties.frozenRowCount'
+                }
+            }
+        ]
+        
+        # إضافة طلب تعديل حجم الأعمدة
+        if data and len(data) > 0 and len(data[0]) > 0:
+            requests.append({
+                'autoResizeDimensions': {
+                    'dimensions': {
+                        'sheetId': sheet_id,
+                        'dimension': 'COLUMNS',
+                        'startIndex': 0,
+                        'endIndex': len(data[0])
+                    }
+                }
+            })
+        
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={'requests': requests}
+        ).execute()
+        
+        logger.info(f"تم تنسيق ورقة: {sheet_name} بنجاح")
+        
+    except Exception as e:
+        logger.error(f"فشل تنسيق ورقة: {sheet_name} - {str(e)}")
+        raise

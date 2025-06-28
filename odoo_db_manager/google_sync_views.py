@@ -17,10 +17,8 @@ from django.views.decorators.http import require_POST
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
-from .google_sync import (
-    GoogleSyncConfig, GoogleSyncLog, sync_with_google_sheets, sync_databases,
-    sync_users, sync_customers, sync_orders, sync_products, sync_inspections, sync_settings, create_sheets_service
-)
+from .google_sync import GoogleSyncConfig, GoogleSyncLog, create_sheets_service
+from .google_sync_service import GoogleSyncService, sync_with_google_sheets_enhanced
 from .views import is_staff_or_superuser
 
 from django.core.paginator import Paginator

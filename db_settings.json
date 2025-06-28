@@ -1,13 +1,13 @@
 {
-    "active_db": 7,
+    "active_db": 3,
     "databases": {
-        "7": {
+        "3": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": "crm_system",
-            "USER": "postgres",
-            "PASSWORD": "5525",
             "HOST": "localhost",
-            "PORT": "5432"
+            "NAME": "crm_system",
+            "PORT": "5432",
+            "USER": "postgres",
+            "PASSWORD": "5525"
         }
     }
 }

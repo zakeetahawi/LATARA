@@ -25,6 +25,71 @@ from .views import is_staff_or_superuser
 logger = logging.getLogger(__name__)
 
 
+def _process_column_mappings(request, headers=None):
+    """
+    دالة مساعدة لمعالجة تعيينات الأعمدة من النموذج
+    Helper function to process column mappings from form data
+    """
+    column_mappings = {}
+    for key, value in request.POST.items():
+        if key.startswith('column_'):
+            column_name = key.replace('column_', '')
+            if value and value != 'ignore':
+                column_mappings[column_name] = value
+
+    # تحويل أسماء الأعمدة إلى أرقام إذا لزم الأمر
+    new_mappings = {}
+    changed = False
+    
+    for k, v in column_mappings.items():
+        if headers and k in headers:
+            col_index = headers.index(k)
+            new_mappings[str(col_index)] = v
+            changed = True
+        else:
+            new_mappings[str(k)] = v
+            
+    return new_mappings, changed
+
+
+def _get_sheet_headers(sheet_name, header_row=1):
+    """
+    دالة مساعدة لجلب عناوين الأعمدة من Google Sheets
+    Helper function to get column headers from Google Sheets
+    """
+    try:
+        importer = GoogleSheetsImporter()
+        importer.initialize()
+        return importer.get_sheet_data(sheet_name)[header_row - 1]
+    except Exception as e:
+        logger.warning(f"Failed to get headers from sheet {sheet_name}: {str(e)}")
+        return []
+
+
+def _validate_mapping_data(mapping):
+    """
+    دالة مساعدة للتحقق من صحة بيانات التعيين
+    Helper function to validate mapping data
+    """
+    # التحقق من وجود تعيينات الأعمدة
+    if isinstance(mapping.column_mappings, str):
+        try:
+            mapping.column_mappings = json.loads(mapping.column_mappings)
+            mapping.save(update_fields=["column_mappings"])
+        except json.JSONDecodeError as e:
+            return False, f'خطأ في تحويل تعيين الأعمدة: {e}'
+            
+    if not mapping.column_mappings:
+        return False, 'يجب تحديد تعيينات الأعمدة أولاً. انتقل إلى صفحة تفاصيل التعيين وقم بتحديد تعيينات الأعمدة.'
+        
+    # التحقق من صحة التعيينات
+    errors = mapping.validate_mappings()
+    if errors:
+        return False, f"أخطاء في التعيين: {', '.join(errors)}"
+        
+    return True, None
+
+
 def _translate_column_name(column_name):
     """
     ترجمة اسم العمود من الإنجليزية إلى العربية
@@ -206,31 +271,9 @@ def mapping_create(request):
                 default_customer_category_id = request.POST.get('default_customer_category')
                 default_branch_id = request.POST.get('default_branch')
 
-                # جلب تعيينات الأعمدة من النموذج
-                column_mappings = {}
-                for key, value in request.POST.items():
-                    if key.startswith('column_'):
-                        column_name = key.replace('column_', '')
-                        if value and value != 'ignore':
-                            column_mappings[column_name] = value
-
-                # حماية: تحويل أي اسم عمود إلى رقم العمود الصحيح
-                headers = []
-                try:
-                    importer = GoogleSheetsImporter()
-                    importer.initialize()
-                    headers = importer.get_sheet_data(sheet_name)[int(request.POST.get('header_row', 1)) - 1]
-                except Exception:
-                    pass
-                new_mappings = {}
-                changed = False
-                for k, v in column_mappings.items():
-                    if headers and k in headers:
-                        col_index = headers.index(k)
-                        new_mappings[str(col_index)] = v
-                        changed = True
-                    else:
-                        new_mappings[str(k)] = v
+                # معالجة تعيينات الأعمدة
+                headers = _get_sheet_headers(sheet_name, int(request.POST.get('header_row', 1)))
+                new_mappings, changed = _process_column_mappings(request, headers)
                 if changed:
                     messages.info(request, 'تم تحويل أسماء الأعمدة إلى أرقام تلقائيًا لضمان سلامة المزامنة.')
                 # إنشاء التعيين
@@ -301,6 +344,7 @@ def mapping_detail(request, mapping_id):
         mapping = get_object_or_404(GoogleSheetMapping, id=mapping_id)
 
         # جلب عناوين الأعمدة من Google Sheets
+        headers = []
         try:
             importer = GoogleSheetsImporter()
             importer.initialize()
@@ -311,15 +355,20 @@ def mapping_detail(request, mapping_id):
                 importer.config.spreadsheet_id = mapping.spreadsheet_id
 
             sheet_data = importer.get_sheet_data(mapping.sheet_name)
-            headers = sheet_data[mapping.header_row - 1] if sheet_data and len(sheet_data) >= mapping.header_row else []
+            if sheet_data and len(sheet_data) >= mapping.header_row:
+                headers = sheet_data[mapping.header_row - 1]
+                logger.info(f"تم جلب {len(headers)} عنوان عمود من Google Sheets")
+            else:
+                logger.warning(f"لم يتم العثور على بيانات في الصف {mapping.header_row}")
 
             # استعادة المعرف الأصلي
             if original_id and hasattr(importer.config, 'spreadsheet_id'):
                 importer.config.spreadsheet_id = original_id
         except Exception as e:
             logger.error(f"خطأ في جلب عناوين الأعمدة: {str(e)}")
-            headers = []
-            messages.warning(request, "لا يمكن جلب عناوين الأعمدة من Google Sheets")
+            import traceback
+            logger.error(f"تفاصيل الخطأ: {traceback.format_exc()}")
+            messages.error(request, f"خطأ في جلب عناوين الأعمدة: {str(e)}")
 
         # آخر المهام
         recent_tasks = GoogleSyncTask.objects.filter(mapping=mapping).order_by('-created_at')[:10]
@@ -590,31 +639,9 @@ def mapping_update_columns(request, mapping_id):
             }
             return render(request, 'odoo_db_manager/advanced_sync/mapping_update_columns.html', context)
 
-        # جلب تعيينات الأعمدة من النموذج
-        column_mappings = {}
-        for key, value in request.POST.items():
-            if key.startswith('column_'):
-                column_name = key.replace('column_', '')
-                if value and value != 'ignore':
-                    column_mappings[column_name] = value
-
-        # حماية: تحويل أي اسم عمود إلى رقم العمود الصحيح
-        headers = []
-        try:
-            importer = GoogleSheetsImporter()
-            importer.initialize()
-            headers = importer.get_sheet_data(mapping.sheet_name)[mapping.header_row - 1]
-        except Exception:
-            pass
-        new_mappings = {}
-        changed = False
-        for k, v in column_mappings.items():
-            if headers and k in headers:
-                col_index = headers.index(k)
-                new_mappings[str(col_index)] = v
-                changed = True
-            else:
-                new_mappings[str(k)] = v
+        # معالجة تعيينات الأعمدة
+        headers = _get_sheet_headers(mapping.sheet_name, mapping.header_row)
+        new_mappings, changed = _process_column_mappings(request, headers)
         if changed:
             messages.info(request, 'تم تحويل أسماء الأعمدة إلى أرقام تلقائيًا لضمان سلامة المزامنة.')
         # التحقق من صحة التعيينات
@@ -639,43 +666,20 @@ def mapping_update_columns(request, mapping_id):
 @user_passes_test(is_staff_or_superuser)
 @require_http_methods(["POST"])
 def start_sync(request, mapping_id):
-    """بدء المزامنة (تنفيذ منطق السكريبت بالضبط)"""
-    import sys
-    print("=== START_SYNC VIEW CALLED ===", file=sys.stderr, flush=True)
+    """بدء المزامنة"""
     try:
         # جلب التعيين والمستخدم
         mapping = get_object_or_404(GoogleSheetMapping, id=mapping_id)
         user = request.user
         
-        # طباعة معلومات التعيين للتشخيص
-        print(f'التعيين: {mapping.name}', file=sys.stderr, flush=True)
-        print(f'معرف الجدول: {mapping.spreadsheet_id}', file=sys.stderr, flush=True)
-        print(f'اسم الصفحة: {mapping.sheet_name}', file=sys.stderr, flush=True)
-        print(f'تعيينات الأعمدة: {mapping.column_mappings}', file=sys.stderr, flush=True)
+        logger.info(f'بدء المزامنة للتعيين: {mapping.name}')
         
-        # التحقق من وجود تعيينات الأعمدة
-        if isinstance(mapping.column_mappings, str):
-            try:
-                mapping.column_mappings = json.loads(mapping.column_mappings)
-                mapping.save(update_fields=["column_mappings"])
-            except Exception as conv_exc:
-                return JsonResponse({
-                    'success': False,
-                    'error': f'خطأ في تحويل تعيين الأعمدة: {conv_exc}'
-                })
-                
-        if not mapping.column_mappings:
+        # التحقق من صحة بيانات التعيين
+        is_valid, error_message = _validate_mapping_data(mapping)
+        if not is_valid:
             return JsonResponse({
                 'success': False,
-                'error': 'يجب تحديد تعيينات الأعمدة أولاً. انتقل إلى صفحة تفاصيل التعيين وقم بتحديد تعيينات الأعمدة.'
-            })
-            
-        # التحقق من صحة التعيينات
-        errors = mapping.validate_mappings()
-        if errors:
-            return JsonResponse({
-                'success': False,
-                'error': f"أخطاء في التعيين: {', '.join(errors)}"
+                'error': error_message
             })
             
         # إنشاء مهمة جديدة
@@ -685,7 +689,7 @@ def start_sync(request, mapping_id):
             created_by=user
         )
         
-        print(f'\nتم إنشاء المهمة: {task.id}', file=sys.stderr, flush=True)
+        logger.info(f'تم إنشاء المهمة: {task.id}')
         
         # تشغيل المهمة
         task.start_task()
@@ -694,25 +698,24 @@ def start_sync(request, mapping_id):
         service = AdvancedSyncService(mapping)
         result = service.sync_from_sheets(task)
         
-        print('\nنتيجة المزامنة:', file=sys.stderr, flush=True)
-        print(f'نجحت: {result["success"]}', file=sys.stderr, flush=True)
+        logger.info(f'نتيجة المزامنة - نجحت: {result["success"]}')
         
         if result['success']:
             task.mark_completed(result)
             stats = result['stats']
             
-            # طباعة الإحصائيات للتشخيص
-            print('الإحصائيات:', file=sys.stderr, flush=True)
-            print(f'  - إجمالي الصفوف: {stats["total_rows"]}', file=sys.stderr, flush=True)
-            print(f'  - الصفوف المعالجة: {stats["processed_rows"]}', file=sys.stderr, flush=True)
-            print(f'  - العملاء الجدد: {stats["customers_created"]}', file=sys.stderr, flush=True)
-            print(f'  - العملاء المحدثون: {stats["customers_updated"]}', file=sys.stderr, flush=True)
-            print(f'  - الطلبات الجديدة: {stats["orders_created"]}', file=sys.stderr, flush=True)
-            print(f'  - الطلبات المحدثة: {stats["orders_updated"]}', file=sys.stderr, flush=True)
-            print(f'  - الأخطاء: {len(stats["errors"])}', file=sys.stderr, flush=True)
+            # تسجيل الإحصائيات للتشخيص
+            logger.info('إحصائيات المزامنة:')
+            logger.info(f'  - إجمالي الصفوف: {stats["total_rows"]}')
+            logger.info(f'  - الصفوف المعالجة: {stats["processed_rows"]}')
+            logger.info(f'  - العملاء الجدد: {stats["customers_created"]}')
+            logger.info(f'  - العملاء المحدثون: {stats["customers_updated"]}')
+            logger.info(f'  - الطلبات الجديدة: {stats["orders_created"]}')
+            logger.info(f'  - الطلبات المحدثة: {stats["orders_updated"]}')
+            logger.info(f'  - الأخطاء: {len(stats["errors"])}')
             
             if stats['errors']:
-                print(f'  - أول خطأ: {stats["errors"][0]}', file=sys.stderr, flush=True)
+                logger.warning(f'  - أول خطأ: {stats["errors"][0]}')
                 
             return JsonResponse({
                 'success': True,
@@ -723,7 +726,7 @@ def start_sync(request, mapping_id):
             })
         else:
             task.mark_failed(result.get('error', 'خطأ غير معروف'))
-            print(f'خطأ: {result.get("error")}', file=sys.stderr, flush=True)
+            logger.error(f'خطأ في المزامنة: {result.get("error")}')
             
             return JsonResponse({
                 'success': False,
@@ -731,11 +734,11 @@ def start_sync(request, mapping_id):
             })
     except Exception as e:
         import traceback
-        print(f"[SYNC][ERROR] EXCEPTION: {e}\n{traceback.format_exc()}", file=sys.stderr, flush=True)
-        logger.error(f"خطأ في بدء المزامنة: {str(e)}")
+        error_msg = f"خطأ في تنفيذ المزامنة: {str(e)}"
+        logger.error(f"{error_msg}\n{traceback.format_exc()}")
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': error_msg
         })
 
 

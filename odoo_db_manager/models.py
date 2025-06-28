@@ -2,12 +2,12 @@
 نماذج إدارة قواعد البيانات على طراز أودو
 """
 
-from django.db import models  # Add this import at the top
+from django.db import models
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
-
-# استيراد النماذج المتقدمة للمزامنة
-from .google_sync_advanced import GoogleSheetMapping, GoogleSyncTask, GoogleSyncConflict, GoogleSyncSchedule
+from django.utils import timezone
+import calendar
+from datetime import timedelta
 
 class ImportLog(models.Model):
     """سجل عمليات الاستيراد"""
@@ -49,30 +49,68 @@ class ImportLog(models.Model):
 
     def __str__(self):
         return f"استيراد {self.sheet_name} - {self.created_at.strftime('%Y-%m-%d %H:%M')}"
-from django.db import models
-from django.utils.translation import gettext_lazy as _
-from django.conf import settings
-from django.utils import timezone
-import calendar
-from datetime import timedelta
+
+
+class Backup(models.Model):
+    """نموذج النسخ الاحتياطية"""
+    
+    name = models.CharField(_('اسم النسخة الاحتياطية'), max_length=200)
+    database = models.ForeignKey(
+        'Database',
+        on_delete=models.CASCADE,
+        related_name='backups',
+        verbose_name=_('قاعدة البيانات')
+    )
+    file_path = models.CharField(_('مسار الملف'), max_length=500)
+    size = models.BigIntegerField(_('الحجم بالبايت'), default=0)
+    created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        verbose_name=_('تم الإنشاء بواسطة')
+    )
+
+    class Meta:
+        verbose_name = _('نسخة احتياطية')
+        verbose_name_plural = _('النسخ الاحتياطية')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.name} - {self.database.name}"
+
+    @property
+    def size_display(self):
+        """عرض الحجم بشكل مقروء"""
+        size = self.size
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size < 1024.0:
+                return f"{size:.1f} {unit}"
+            size /= 1024.0
+        return f"{size:.1f} TB"
+
+
 class Database(models.Model):
     """نموذج قاعدة البيانات الرئيسي"""
+    
     DB_TYPES = [
         ('postgresql', 'PostgreSQL'),
     ]
+    
     name = models.CharField(_('اسم قاعدة البيانات'), max_length=100)
     db_type = models.CharField(_('نوع قاعدة البيانات'), max_length=20, choices=DB_TYPES)
     connection_info = models.JSONField(_('معلومات الاتصال'), default=dict)
     is_active = models.BooleanField(_('نشطة'), default=False)
-    # إضافة الحقول المفقودة
     status = models.BooleanField(_('حالة الاتصال'), default=False)
     error_message = models.TextField(_('رسالة الخطأ'), blank=True, null=True)
     created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
     updated_at = models.DateTimeField(_('تاريخ التحديث'), auto_now=True)
+    
     class Meta:
         verbose_name = _('قاعدة بيانات')
         verbose_name_plural = _('قواعد البيانات')
         ordering = ['-created_at']
+    
     def __str__(self):
         return self.name
     @property
