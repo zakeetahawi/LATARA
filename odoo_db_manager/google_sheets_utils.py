@@ -41,8 +41,12 @@ def build_range_name(sheet_name: str, start_row: Optional[int] = None,
 
     if needs_quotes:
         # استخدام علامات اقتباس مفردة وتجنب التداخل
+<<<<<<< HEAD
         escaped_name = clean_sheet_name.replace("'", "''")
         clean_sheet_name = f"'{escaped_name}'"
+=======
+        clean_sheet_name = "'" + clean_sheet_name.replace("'", "''") + "'"
+>>>>>>> source/main
 
     # بناء النطاق
     if start_row is None and end_row is None:

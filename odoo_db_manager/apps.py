@@ -2,8 +2,11 @@
 تكوين تطبيق إدارة قواعد البيانات على طراز أودو
 """
 
+import logging
 from django.apps import AppConfig
 from django.utils.translation import gettext_lazy as _
+
+logger = logging.getLogger(__name__)
 
 
 class OdooDbManagerConfig(AppConfig):
@@ -15,7 +18,7 @@ class OdooDbManagerConfig(AppConfig):
         """تهيئة التطبيق"""
         # استيراد الإشارات
         try:
-            import odoo_db_manager.signals            # التحقق من وجود الجداول قبل المزامنة
+            import odoo_db_manager.signals  # noqa: F401 (signals auto-register)
             from django.db import connection
             from django.db.utils import OperationalError
             
@@ -32,7 +35,7 @@ class OdooDbManagerConfig(AppConfig):
                 
             except OperationalError:
                 # الجداول غير موجودة بعد، تخطي المزامنة
-                print("تخطي مزامنة قواعد البيانات - الجداول غير موجودة بعد")
+                logger.info("Skipping database sync - tables not created yet")
 
             # بدء تشغيل خدمة النسخ الاحتياطية المجدولة
             import os
@@ -41,12 +44,11 @@ class OdooDbManagerConfig(AppConfig):
                 try:
                     from .services.scheduled_backup_service import scheduled_backup_service
                     scheduled_backup_service.start()
-                    print("تم بدء تشغيل خدمة النسخ الاحتياطية المجدولة")
+                    logger.info("Scheduled backup service started successfully")
                 except Exception as scheduler_error:
-                    print(f"فشل بدء تشغيل المجدول: {str(scheduler_error)}")
-                    # في بيئة الإنتاج، قد نحتاج لحل بديل
-                    print("سيتم استخدام النسخ الاحتياطية اليدوية في بيئة الإنتاج")
+                    logger.warning(f"Failed to start scheduler: {str(scheduler_error)}")
+                    logger.info("Manual backups will be used in production")
         except ImportError:
             pass
         except Exception as e:
-            print(f"حدث خطأ أثناء تهيئة التطبيق: {str(e)}")
+            logger.error(f"Error during app initialization: {str(e)}")

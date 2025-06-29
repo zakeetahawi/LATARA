@@ -116,7 +116,7 @@
                             <td>{% if product.category %}{{ product.category.name }}{% else %}-{% endif %}</td>
                             <td>{{ product.current_stock }}</td>
                             <td>{{ product.minimum_stock }}</td>
-                            <td>{{ product.price }} ج.م</td>
+                            <td>{{ product.price }} {{ currency_symbol }}</td>
                             <td>
                                 {% if product.current_stock <= 0 %}
                                     <span class="badge bg-secondary">غير متوفر</span>

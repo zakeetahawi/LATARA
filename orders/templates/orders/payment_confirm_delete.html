@@ -11,7 +11,7 @@
                     <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> تأكيد حذف الدفعة</h5>
                 </div>
                 <div class="card-body">
-                    <p class="mb-0">هل أنت متأكد من حذف الدفعة بقيمة <strong>{{ payment.amount }} ج.م</strong> للطلب <strong>#{{ order.order_number }}</strong>؟</p>
+                    <p class="mb-0">هل أنت متأكد من حذف الدفعة بقيمة <strong>{{ payment.amount }} {{ currency_symbol }}</strong> للطلب <strong>#{{ order.order_number }}</strong>؟</p>
                     <p class="text-danger mb-0"><strong>تحذير:</strong> سيتم تحديث المبلغ المدفوع للطلب بعد حذف هذه الدفعة.</p>
                 </div>
                 <div class="card-footer d-flex justify-content-between">

@@ -19,61 +19,38 @@ class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'inspections/dashboard.html'
 
     def get_context_data(self, **kwargs):
-        from django.core.cache import cache
-        from accounts.models import Branch
         context = super().get_context_data(**kwargs)
-        today = timezone.now().date()
+        from accounts.models import Branch
+        from django.db.models import Q
         branch_id = self.request.GET.get('branch')
+        status = self.request.GET.get('status')
+        from_orders = self.request.GET.get('from_orders')
+        is_duplicated = self.request.GET.get('is_duplicated')
+        today = timezone.now().date()
 
-        # إنشاء مفتاح تخزين مؤقت فريد
-        cache_key = f'dashboard_stats_{"all" if not branch_id else branch_id}_{today}'
-        dashboard_data = cache.get(cache_key)
+        # بناء queryset للداشبورد بنفس منطق الفلترة
+        dashboard_qs = Inspection.objects.all() if self.request.user.is_superuser else Inspection.objects.filter(
+            Q(inspector=self.request.user) | Q(created_by=self.request.user)
+        )
+        if branch_id:
+            dashboard_qs = dashboard_qs.filter(order__customer__branch_id=branch_id)
+        if status == 'pending' and from_orders == '1':
+            dashboard_qs = dashboard_qs.filter(status='pending', is_from_orders=True)
+        elif status:
+            dashboard_qs = dashboard_qs.filter(status=status)
+        if is_duplicated == '1':
+            dashboard_qs = dashboard_qs.filter(notes__contains='تكرار من المعاينة رقم:')
 
-        if dashboard_data is None:
-            # إذا لم تكن البيانات في التخزين المؤقت، قم بحسابها
-            # تحسين الاستعلام باستخدام select_related للعلاقات المستخدمة بكثرة
-            inspections = Inspection.objects.select_related('customer', 'branch', 'inspector')
-
-            if branch_id:
-                try:
-                    branch_id = int(branch_id)
-                    inspections = inspections.filter(branch_id=branch_id)
-                    context['selected_branch'] = branch_id
-                except (ValueError, TypeError):
-                    context['selected_branch'] = None
-            else:
-                context['selected_branch'] = None
-
-            # استخدام filter بدلاً من عمل استعلامات متعددة
-            pending_inspections = inspections.filter(status='pending')
-
-            # حساب عدد المعاينات بحسب الحالة
-            new_inspections_count = pending_inspections.filter(
-                scheduled_date__gt=today
-            ).count()
-            completed_inspections_count = inspections.filter(
-                status='completed'
-            ).count()
-            in_progress_inspections_count = pending_inspections.filter(
-                scheduled_date=today
-            ).count()
-            overdue_inspections_count = pending_inspections.filter(
-                scheduled_date__lt=today
-            ).count()
-
-            # تخزين النتائج في كاش لمدة 10 دقائق (600 ثانية)
-            dashboard_data = {
-                'new_inspections_count': new_inspections_count,
-                'completed_inspections_count': completed_inspections_count,
-                'in_progress_inspections_count': in_progress_inspections_count,
-                'overdue_inspections_count': overdue_inspections_count,
-            }
-            cache.set(cache_key, dashboard_data, 600)  # 10 دقائق
-
-        # إضافة البيانات المخزنة مؤقتاً إلى السياق
-        context.update(dashboard_data)
+        # إحصائيات الداشبورد بناءً على الفلترة
+        context['dashboard'] = {
+            'total_inspections': dashboard_qs.count(),
+            'new_inspections': dashboard_qs.filter(status='pending', scheduled_date__gt=today).count(),
+            'scheduled_inspections': dashboard_qs.filter(status='scheduled').count(),
+            'successful_inspections': dashboard_qs.filter(status='completed').count(),
+            'cancelled_inspections': dashboard_qs.filter(status='cancelled').count(),
+            'duplicated_inspections': dashboard_qs.filter(notes__contains='تكرار من المعاينة رقم:').count(),
+        }
         context['branches'] = Branch.objects.all()
-
         return context
 
 class CompletedInspectionsDetailView(LoginRequiredMixin, ListView):
@@ -125,80 +102,71 @@ class InspectionListView(LoginRequiredMixin, ListView):
     paginate_by = 10
 
     def get_queryset(self):
+        from .forms import InspectionSearchForm
+        form = InspectionSearchForm(self.request.GET)
         queryset = Inspection.objects.all() if self.request.user.is_superuser else Inspection.objects.filter(
             Q(inspector=self.request.user) | Q(created_by=self.request.user)
         )
+        if form.is_valid():
+            q = form.cleaned_data.get('q')
+            branch_id = form.cleaned_data.get('branch')
+            status = form.cleaned_data.get('status')
+            from_orders = form.cleaned_data.get('from_orders')
+            is_duplicated = form.cleaned_data.get('is_duplicated')
+            if branch_id:
+                queryset = queryset.filter(order__customer__branch_id=branch_id)
+            if status == 'pending' and from_orders == '1':
+                queryset = queryset.filter(status='pending', is_from_orders=True)
+            elif status:
+                queryset = queryset.filter(status=status)
+            if is_duplicated == '1':
+                queryset = queryset.filter(notes__contains='تكرار من المعاينة رقم:')
+            # بحث ذكي متعدد الحقول
+            if q:
+                queryset = queryset.filter(
+                    Q(order__customer__code__icontains=q) |
+                    Q(order__customer__name__icontains=q) |
+                    Q(order__contract_number__icontains=q) |
+                    Q(order__id__icontains=q) |
+                    Q(order__customer__phone__icontains=q) |
+                    Q(order__customer__phone2__icontains=q) |
+                    Q(order__customer__email__icontains=q) |
+                    Q(notes__icontains=q)
+                )
+        return queryset.select_related('customer', 'inspector', 'branch', 'order__customer__branch')
 
-        # Branch filter
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from accounts.models import Branch
+        from django.db.models import Q
         branch_id = self.request.GET.get('branch')
-        if branch_id:
-            queryset = queryset.filter(branch_id=branch_id)
-
-        # Status and other filters
         status = self.request.GET.get('status')
         from_orders = self.request.GET.get('from_orders')
         is_duplicated = self.request.GET.get('is_duplicated')
         today = timezone.now().date()
 
-        if status == 'pending' and from_orders == '1':
-            queryset = queryset.filter(status='pending', is_from_orders=True)
-        elif status:
-            queryset = queryset.filter(status=status)
-
-        # Filter for duplicated inspections
-        if is_duplicated == '1':
-            # Find inspections where notes contain text indicating they are duplicates
-            queryset = queryset.filter(notes__contains='تكرار من المعاينة رقم:')
-
-        return queryset.select_related('customer', 'inspector', 'branch')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        from accounts.models import Branch
-
-        # تحسين استخدام استعلام واحد لجميع إحصائيات المعاينات باستخدام annotate
-        from django.db.models import Count, Case, When, IntegerField
-
-        # استخدام قاعدة بيانات بحيث تكون أكثر كفاءة
-        inspections = Inspection.objects.all()
-        if not self.request.user.is_superuser:
-            inspections = inspections.filter(
-                Q(inspector=self.request.user) | Q(created_by=self.request.user)
-            )
-
-        # Branch filter for stats
-        branch_id = self.request.GET.get('branch')
-        if branch_id:
-            inspections = inspections.filter(branch_id=branch_id)
-
-        # استخدام طريقة أكثر كفاءة لحساب الإحصائيات - استعلام واحد بدلاً من عدة استعلامات
-        stats = inspections.aggregate(
-            total_inspections=Count('id'),
-            new_inspections=Count(Case(
-                When(status='pending', then=1),
-                output_field=IntegerField(),
-            )),
-            scheduled_inspections=Count(Case(
-                When(status='scheduled', then=1),
-                output_field=IntegerField(),
-            )),
-            successful_inspections=Count(Case(
-                When(status='completed', then=1),
-                output_field=IntegerField(),
-            )),
-            cancelled_inspections=Count(Case(
-                When(status='cancelled', then=1),
-                output_field=IntegerField(),
-            )),
+        # بناء queryset للداشبورد بنفس منطق الفلترة
+        dashboard_qs = Inspection.objects.all() if self.request.user.is_superuser else Inspection.objects.filter(
+            Q(inspector=self.request.user) | Q(created_by=self.request.user)
         )
+        if branch_id:
+            dashboard_qs = dashboard_qs.filter(order__customer__branch_id=branch_id)
+        if status == 'pending' and from_orders == '1':
+            dashboard_qs = dashboard_qs.filter(status='pending', is_from_orders=True)
+        elif status:
+            dashboard_qs = dashboard_qs.filter(status=status)
+        if is_duplicated == '1':
+            dashboard_qs = dashboard_qs.filter(notes__contains='تكرار من المعاينة رقم:')
 
-        # حساب المعاينات المكررة
-        duplicated_inspections = inspections.filter(notes__contains='تكرار من المعاينة رقم:').count()
-        stats['duplicated_inspections'] = duplicated_inspections
-
-        context['dashboard'] = stats
-
-        # Add branches for filter
+        # إحصائيات الداشبورد بناءً على الفلترة
+        context['dashboard'] = {
+            'total_inspections': dashboard_qs.count(),
+            'new_inspections': dashboard_qs.filter(status='pending', scheduled_date__gt=today).count(),
+            'scheduled_inspections': dashboard_qs.filter(status='scheduled').count(),
+            'successful_inspections': dashboard_qs.filter(status='completed').count(),
+            'cancelled_inspections': dashboard_qs.filter(status='cancelled').count(),
+            'duplicated_inspections': dashboard_qs.filter(notes__contains='تكرار من المعاينة رقم:').count(),
+        }
         context['branches'] = Branch.objects.all()
         return context
 

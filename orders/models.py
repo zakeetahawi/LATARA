@@ -132,7 +132,8 @@ class Order(models.Model):
                     else:
                         next_num = 1
                     # Generate new order number
-                    self.order_number = f"{self.customer.code}-{next_num:04d}"
+                    customer_code = self.customer.code if self.customer and self.customer.code else "UNKNOWN"
+                    self.order_number = f"{customer_code}-{next_num:04d}"
                 except Exception as e:
                     print(f"Error generating order number: {e}")
                     # Use a fallback order number if we can't generate one

@@ -277,9 +277,9 @@
                 </div>
 
                 <div class="info-item">
-                    <span class="info-label">تحديث العملاء الموجودين</span>
+                    <span class="info-label">تحديث البيانات الموجودة</span>
                     <span class="info-value">
-                        {% if mapping.update_existing_customers %}
+                        {% if mapping.update_existing %}
                             <i class="fas fa-check text-success"></i> نعم
                         {% else %}
                             <i class="fas fa-times text-danger"></i> لا
@@ -288,9 +288,20 @@
                 </div>
 
                 <div class="info-item">
-                    <span class="info-label">تحديث الطلبات الموجودة</span>
+                    <span class="info-label">إنشاء معاينات تلقائياً</span>
                     <span class="info-value">
-                        {% if mapping.update_existing_orders %}
+                        {% if mapping.auto_create_inspections %}
+                            <i class="fas fa-check text-success"></i> نعم
+                        {% else %}
+                            <i class="fas fa-times text-danger"></i> لا
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">إنشاء تركيبات تلقائياً</span>
+                    <span class="info-value">
+                        {% if mapping.auto_create_installations %}
                             <i class="fas fa-check text-success"></i> نعم
                         {% else %}
                             <i class="fas fa-times text-danger"></i> لا
@@ -317,7 +328,7 @@
             <div class="info-card">
                 <h5><i class="fas fa-columns text-primary"></i> تعيينات الأعمدة ({{ mapping.column_mappings|length }})</h5>
                 <div class="column-mappings">
-                    {% for column, field_type in mapping.get_clean_column_mappings.items %}
+                    {% for column, field_type in mapping.get_mapped_columns.items %}
                     <div class="column-mapping-item">
                         <span class="arabic-text" title="{{ column }}">{{ column|truncatechars:25 }}</span>
                         <span class="text-muted">{{ field_type }}</span>

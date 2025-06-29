@@ -320,8 +320,8 @@
                             <td>{{ forloop.counter }}</td>
                             <td>{{ item.product.name }}</td>
                             <td>{{ item.quantity }}</td>
-                            <td>{{ item.unit_price }} ج.م</td>
-                            <td>{{ item.total_price }} ج.م</td>
+                            <td>{{ item.unit_price }} {{ currency_symbol }}</td>
+                            <td>{{ item.total_price }} {{ currency_symbol }}</td>
                             <td>{{ item.notes|default:"-" }}</td>
                         </tr>
                         {% empty %}
@@ -465,7 +465,7 @@
                         {% for payment in payments %}
                         <tr>
                             <td>{{ forloop.counter }}</td>
-                            <td>{{ payment.amount }} ج.م</td>
+                            <td>{{ payment.amount }} {{ currency_symbol }}</td>
                             <td>{{ payment.get_payment_method_display }}</td>
                             <td>{{ payment.payment_date|date:"Y-m-d H:i" }}</td>
                             <td>{{ payment.reference_number|default:"-" }}</td>
@@ -492,11 +492,11 @@
                     <tfoot>
                         <tr class="table-light">
                             <th colspan="7" class="text-start">المجموع المدفوع</th>
-                            <th>{{ order.paid_amount }} ج.م</th>
+                            <th>{{ order.paid_amount }} {{ currency_symbol }}</th>
                         </tr>
                         <tr class="table-light">
                             <th colspan="7" class="text-start">المبلغ المتبقي</th>
-                            <th>{{ order.remaining_amount }} ج.م</th>
+                            <th>{{ order.remaining_amount }} {{ currency_symbol }}</th>
                         </tr>
                     </tfoot>
                 </table>
@@ -504,6 +504,8 @@
         </div>
     </div>
 </div>
+
+{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -547,5 +549,4 @@
     border-radius: 4px;
 }
 </style>
-{% endblock %}
 {% endblock %}

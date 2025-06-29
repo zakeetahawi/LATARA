@@ -15,8 +15,13 @@
                         <p class="mb-0">
                             <strong>الطلب:</strong> #{{ order.order_number }} - {{ order.customer.name }}<br>
                             <strong>المبلغ الإجمالي:</strong> {{ order.total_amount }} {{ currency_symbol }}<br>
+<<<<<<< HEAD
                             <strong>المبلغ المدفوع:</strong> {{ order.paid_amount }} ج.م<br>
                             <strong>المبلغ المتبقي:</strong> {{ order.remaining_amount }} ج.م
+=======
+                            <strong>المبلغ المدفوع:</strong> {{ order.paid_amount }} {{ currency_symbol }}<br>
+                            <strong>المبلغ المتبقي:</strong> {{ order.remaining_amount }} {{ currency_symbol }}
+>>>>>>> source/main
                         </p>
                     </div>
                     

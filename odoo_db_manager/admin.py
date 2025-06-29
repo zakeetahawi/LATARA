@@ -12,9 +12,12 @@ from django.utils import timezone
 
 from .models import Database, Backup
 from .google_sync import GoogleSyncConfig, GoogleSyncLog
+<<<<<<< HEAD
 from .google_sync_advanced import (
     GoogleSheetMapping, GoogleSyncTask, GoogleSyncConflict, GoogleSyncSchedule
 )
+=======
+>>>>>>> source/main
 
 @admin.register(Database)
 class DatabaseAdmin(admin.ModelAdmin):
@@ -101,6 +104,7 @@ class GoogleSyncLogAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+<<<<<<< HEAD
 
 
 # ==========================================
@@ -475,3 +479,5 @@ class GoogleSyncScheduleAdmin(admin.ModelAdmin):
             obj.calculate_next_run()
         
         super().save_model(request, obj, form, change)
+=======
+>>>>>>> source/main

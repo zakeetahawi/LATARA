@@ -100,8 +100,8 @@
         <div class="card-body">
             <form method="get" class="row g-3">
                 <div class="col-md-3">
-                    <input type="text" name="search" class="form-control" placeholder="{% trans 'بحث...' %}"
-                           value="{{ request.GET.search }}">
+                    <input type="text" name="q" class="form-control" placeholder="{% trans 'بحث بكود العميل أو اسم العميل أو رقم الطلب...' %}"
+                           value="{{ request.GET.q }}">
                 </div>
                 <div class="col-md-3">
                     <select name="branch" class="form-select">
@@ -165,6 +165,7 @@
                     <th>{% trans 'عدد الشبابيك' %}</th>
                     <th>{% trans 'فني المعاينة' %}</th>
                     <th>{% trans 'البائع' %}</th>
+                    <th>{% trans 'الفرع' %}</th>
                     <th>{% trans 'ملف المعاينة' %}</th>
                     <th>{% trans 'الحالة' %}</th>
                     <th>{% trans 'النتيجة' %}</th>
@@ -191,6 +192,7 @@
                         {% endif %}
                     </td>
                     <td>{% if inspection.responsible_employee %}{{ inspection.responsible_employee }}{% else %}-{% endif %}</td>
+                    <td>{% if inspection.order and inspection.order.customer and inspection.order.customer.branch %}{{ inspection.order.customer.branch.name }}{% else %}-{% endif %}</td>
                     <td>
                         {% if inspection.is_uploaded_to_drive and inspection.google_drive_file_url %}
                             <a href="{{ inspection.google_drive_file_url }}" target="_blank" title="عرض ملف المعاينة في Google Drive"
@@ -266,12 +268,12 @@
         <ul class="pagination justify-content-center">
             {% if page_obj.has_previous %}
             <li class="page-item">
-                <a class="page-link" href="?page=1&search={{ request.GET.search }}&status={{ request.GET.status }}&branch={{ request.GET.branch }}" title="الأولى">
+                <a class="page-link" href="?page=1&q={{ request.GET.q }}&status={{ request.GET.status }}&branch={{ request.GET.branch }}" title="الأولى">
                     <i class="fas fa-angle-double-right"></i>
                 </a>
             </li>
             <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.previous_page_number }}&search={{ request.GET.search }}&status={{ request.GET.status }}&branch={{ request.GET.branch }}" title="السابقة">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ request.GET.q }}&status={{ request.GET.status }}&branch={{ request.GET.branch }}" title="السابقة">
                     <i class="fas fa-chevron-right"></i>
                 </a>
             </li>
@@ -281,19 +283,19 @@
             {% for num in page_obj.paginator.page_range %}
                 {% if num >= page_obj.number|add:'-4' and num <= page_obj.number|add:'5' %}
                     <li class="page-item {% if num == page_obj.number %}active{% endif %}">
-                        <a class="page-link" href="?page={{ num }}&search={{ request.GET.search }}&status={{ request.GET.status }}&branch={{ request.GET.branch }}">{{ num }}</a>
+                        <a class="page-link" href="?page={{ num }}&q={{ request.GET.q }}&status={{ request.GET.status }}&branch={{ request.GET.branch }}">{{ num }}</a>
                     </li>
                 {% endif %}
             {% endfor %}
 
             {% if page_obj.has_next %}
             <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.next_page_number }}&search={{ request.GET.search }}&status={{ request.GET.status }}&branch={{ request.GET.branch }}" title="التالية">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ request.GET.q }}&status={{ request.GET.status }}&branch={{ request.GET.branch }}" title="التالية">
                     <i class="fas fa-chevron-left"></i>
                 </a>
             </li>
             <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}&search={{ request.GET.search }}&status={{ request.GET.status }}&branch={{ request.GET.branch }}" title="الأخيرة">
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}&q={{ request.GET.q }}&status={{ request.GET.status }}&branch={{ request.GET.branch }}" title="الأخيرة">
                     <i class="fas fa-angle-double-left"></i>
                 </a>
             </li>

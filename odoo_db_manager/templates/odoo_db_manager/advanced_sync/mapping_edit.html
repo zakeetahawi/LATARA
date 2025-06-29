@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load mapping_tags %}
 
 {% block title %}تعديل التعيين - {{ mapping.name }}{% endblock %}
 
@@ -140,30 +141,115 @@
                             إنشاء الطلبات تلقائياً
                         </label>
                     </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="auto_create_inspections" name="auto_create_inspections" {% if mapping.auto_create_inspections %}checked{% endif %}>
+                        <label class="form-check-label" for="auto_create_inspections">
+                            إنشاء المعاينات تلقائياً
+                        </label>
+                    </div>
                 </div>
                 <div class="col-md-6">
                     <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="update_existing_customers" name="update_existing_customers" {% if mapping.update_existing_customers %}checked{% endif %}>
-                        <label class="form-check-label" for="update_existing_customers">
-                            تحديث العملاء الموجودين
+                        <input class="form-check-input" type="checkbox" id="auto_create_installations" name="auto_create_installations" {% if mapping.auto_create_installations %}checked{% endif %}>
+                        <label class="form-check-label" for="auto_create_installations">
+                            إنشاء التركيبات تلقائياً
                         </label>
                     </div>
                     
                     <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="update_existing_orders" name="update_existing_orders" {% if mapping.update_existing_orders %}checked{% endif %}>
-                        <label class="form-check-label" for="update_existing_orders">
-                            تحديث الطلبات الموجودة
+                        <input class="form-check-input" type="checkbox" id="update_existing" name="update_existing" {% if mapping.update_existing %}checked{% endif %}>
+                        <label class="form-check-label" for="update_existing">
+                            تحديث البيانات الموجودة
+                        </label>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="enable_reverse_sync" name="enable_reverse_sync" {% if mapping.enable_reverse_sync %}checked{% endif %}>
+                        <label class="form-check-label" for="enable_reverse_sync">
+                            تفعيل المزامنة العكسية
                         </label>
                     </div>
                 </div>
             </div>
-            
-            <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" id="enable_reverse_sync" name="enable_reverse_sync" {% if mapping.enable_reverse_sync %}checked{% endif %}>
-                <label class="form-check-label" for="enable_reverse_sync">
-                    تفعيل المزامنة العكسية
-                </label>
+
+            <div class="mb-3">
+                <label for="conflict_resolution" class="form-label">حل التعارضات</label>
+                <select class="form-select" id="conflict_resolution" name="conflict_resolution">
+                    <option value="skip" {% if mapping.conflict_resolution == 'skip' %}selected{% endif %}>تجاهل التعارضات</option>
+                    <option value="overwrite" {% if mapping.conflict_resolution == 'overwrite' %}selected{% endif %}>الكتابة فوق البيانات</option>
+                    <option value="manual" {% if mapping.conflict_resolution == 'manual' %}selected{% endif %}>الحل اليدوي</option>
+                </select>
             </div>
+        </div>
+
+        <!-- تعيينات الأعمدة -->
+        <div class="form-section">
+            <h5 class="section-title">
+                <i class="fas fa-columns"></i>
+                تعيينات الأعمدة
+            </h5>
+            
+            {% if sheet_columns %}
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>عمود Google Sheets</th>
+                            <th>حقل النظام</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for column in sheet_columns %}
+                        <tr>
+                            <td>{{ column }}</td>
+                            <td>
+                                <select class="form-select" name="column_{{ column }}">
+                                    <option value="ignore">تجاهل</option>
+                                    <optgroup label="بيانات العميل">
+                                        <option value="customer_code" {% is_column_mapped mapping.column_mappings column 'customer_code' as is_selected %}{% if is_selected %}selected{% endif %}>رقم العميل</option>
+                                        <option value="customer_name" {% is_column_mapped mapping.column_mappings column 'customer_name' as is_selected %}{% if is_selected %}selected{% endif %}>اسم العميل</option>
+                                        <option value="customer_phone" {% is_column_mapped mapping.column_mappings column 'customer_phone' as is_selected %}{% if is_selected %}selected{% endif %}>رقم الهاتف</option>
+                                        <option value="customer_phone2" {% is_column_mapped mapping.column_mappings column 'customer_phone2' as is_selected %}{% if is_selected %}selected{% endif %}>رقم الهاتف الثاني</option>
+                                        <option value="customer_email" {% is_column_mapped mapping.column_mappings column 'customer_email' as is_selected %}{% if is_selected %}selected{% endif %}>البريد الإلكتروني</option>
+                                        <option value="customer_address" {% is_column_mapped mapping.column_mappings column 'customer_address' as is_selected %}{% if is_selected %}selected{% endif %}>العنوان</option>
+                                    </optgroup>
+                                    <optgroup label="بيانات الطلب">
+                                        <option value="order_number" {% is_column_mapped mapping.column_mappings column 'order_number' as is_selected %}{% if is_selected %}selected{% endif %}>رقم الطلب</option>
+                                        <option value="invoice_number" {% is_column_mapped mapping.column_mappings column 'invoice_number' as is_selected %}{% if is_selected %}selected{% endif %}>رقم الفاتورة</option>
+                                        <option value="contract_number" {% is_column_mapped mapping.column_mappings column 'contract_number' as is_selected %}{% if is_selected %}selected{% endif %}>رقم العقد</option>
+                                        <option value="order_date" {% is_column_mapped mapping.column_mappings column 'order_date' as is_selected %}{% if is_selected %}selected{% endif %}>تاريخ الطلب</option>
+                                        <option value="order_type" {% is_column_mapped mapping.column_mappings column 'order_type' as is_selected %}{% if is_selected %}selected{% endif %}>نوع الطلب</option>
+                                        <option value="tracking_status" {% is_column_mapped mapping.column_mappings column 'tracking_status' as is_selected %}{% if is_selected %}selected{% endif %}>حالة التتبع</option>
+                                        <option value="total_amount" {% is_column_mapped mapping.column_mappings column 'total_amount' as is_selected %}{% if is_selected %}selected{% endif %}>المبلغ الإجمالي</option>
+                                        <option value="paid_amount" {% is_column_mapped mapping.column_mappings column 'paid_amount' as is_selected %}{% if is_selected %}selected{% endif %}>المبلغ المدفوع</option>
+                                        <option value="delivery_type" {% is_column_mapped mapping.column_mappings column 'delivery_type' as is_selected %}{% if is_selected %}selected{% endif %}>نوع التسليم</option>
+                                        <option value="delivery_address" {% is_column_mapped mapping.column_mappings column 'delivery_address' as is_selected %}{% if is_selected %}selected{% endif %}>عنوان التسليم</option>
+                                    </optgroup>
+                                    <optgroup label="بيانات المعاينة والتركيب">
+                                        <option value="inspection_date" {% is_column_mapped mapping.column_mappings column 'inspection_date' as is_selected %}{% if is_selected %}selected{% endif %}>تاريخ المعاينة</option>
+                                        <option value="inspection_result" {% is_column_mapped mapping.column_mappings column 'inspection_result' as is_selected %}{% if is_selected %}selected{% endif %}>نتيجة المعاينة</option>
+                                        <option value="installation_status" {% is_column_mapped mapping.column_mappings column 'installation_status' as is_selected %}{% if is_selected %}selected{% endif %}>حالة التركيب</option>
+                                        <option value="windows_count" {% is_column_mapped mapping.column_mappings column 'windows_count' as is_selected %}{% if is_selected %}selected{% endif %}>عدد الشبابيك</option>
+                                    </optgroup>
+                                    <optgroup label="بيانات أخرى">
+                                        <option value="notes" {% is_column_mapped mapping.column_mappings column 'notes' as is_selected %}{% if is_selected %}selected{% endif %}>ملاحظات</option>
+                                        <option value="branch" {% is_column_mapped mapping.column_mappings column 'branch' as is_selected %}{% if is_selected %}selected{% endif %}>الفرع</option>
+                                        <option value="salesperson" {% is_column_mapped mapping.column_mappings column 'salesperson' as is_selected %}{% if is_selected %}selected{% endif %}>البائع</option>
+                                    </optgroup>
+                                </select>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                لا يمكن جلب أعمدة الجدول. تأكد من صحة معرف الجدول واسم الصفحة.
+            </div>
+            {% endif %}
         </div>
 
         <!-- القيم الافتراضية -->

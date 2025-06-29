@@ -355,7 +355,7 @@
                                             {{ order.get_tracking_status_display }}
                                         </span>
                                     </td>
-                                    <td>{{ order.total_amount }} ج.م</td>
+                                    <td>{{ order.total_amount }} {{ currency_symbol }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>

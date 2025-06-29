@@ -260,7 +260,8 @@ class Customer(models.Model):
                     sequence = 1
             else:
                 sequence = 1
-            self.code = f"{self.branch.code}-{str(sequence).zfill(4)}"
+            branch_code = self.branch.code if self.branch else "00"
+            self.code = f"{branch_code}-{str(sequence).zfill(4)}"
         super().save(*args, **kwargs)
 
     @property

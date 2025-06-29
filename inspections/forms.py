@@ -259,3 +259,16 @@ class InspectionForm(forms.ModelForm):
             self.add_error('scheduled_date', _('يجب تحديد تاريخ التنفيذ'))
 
         return cleaned_data
+
+class InspectionSearchForm(forms.Form):
+    q = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': _('بحث بكود العميل أو اسم العميل أو رقم الطلب أو رقم العقد أو رقم الهاتف...')
+        })
+    )
+    branch = forms.CharField(required=False)
+    status = forms.CharField(required=False)
+    from_orders = forms.CharField(required=False)
+    is_duplicated = forms.CharField(required=False)

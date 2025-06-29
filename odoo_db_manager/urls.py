@@ -2,12 +2,11 @@
 مسارات إدارة قواعد البيانات على طراز أودو
 """
 
-from django.urls import path
+from django.urls import path, include
 from . import views
-from . import views_import
 from . import google_sync_views
-from . import views_google_import
 from . import views_advanced_sync
+
 
 app_name = 'odoo_db_manager'
 
@@ -99,37 +98,8 @@ urlpatterns = [
          google_sync_views.google_sync_logs_api,
          name='google_sync_logs_api'),
 
-    # استيراد البيانات
-    path('import/', views_import.import_dashboard, name='import_dashboard'),
-    path('import/select/', views_import.import_select, name='import_select'),
-    path('import/preview/',
-         views_import.import_preview, name='import_preview'),
-    path('import/execute/',
-         views_import.import_execute, name='import_execute'),
-    path('import/result/<int:log_id>/',
-         views_import.import_result, name='import_result'),
-    path('import/progress/',
-         views_import.import_progress, name='import_progress'),
-
-    # استيراد محسّن من Google Sheets
-    path('google-import/',
-         views_google_import.google_sheets_import_dashboard,
-         name='google_import_dashboard'),
-    path('google-import/form/',
-         views_google_import.google_sheets_import_form,
-         name='google_import_form'),
-    path('google-import/preview/',
-         views_google_import.google_sheets_import_preview,
-         name='google_import_preview'),
-    path('google-import/execute/',
-         views_google_import.google_sheets_import_execute,
-         name='google_import_execute'),
-    path('google-import/result/<int:import_id>/',
-         views_google_import.google_sheets_import_result,
-         name='google_import_result'),
-    path('google-import/api/sheets/',
-         views_google_import.get_sheets_ajax,
-         name='get_sheets_ajax'),
+    # نظام Google المتقدم (الرئيسي)
+    path('google-unified/', views_advanced_sync.advanced_sync_dashboard, name='google_unified_dashboard'),
 
     # مسارات المزامنة المتقدمة
     path('advanced-sync/',
@@ -189,13 +159,5 @@ urlpatterns = [
          views_advanced_sync.preview_sheet_data,
          name='preview_sheet_data'),
 
-    # سجل الاستيراد
-    path('import/logs/',
-         views_google_import.import_logs,
-         name='import_logs'),
 
-    # زر الاستيراد الشامل
-    path('google-import/all/',
-         views_google_import.google_import_all,
-         name='google_import_all'),
 ]
